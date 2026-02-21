@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id                        String   @id @default(uuid())
+  name                      String
+  targetProfitability       Decimal  @default(7.5) @map("target_profitability")
+  targetBillableUtilization Decimal  @default(68.1) @map("target_billable_utilization")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@map("organizations")
+}
+
+enum MemberRole {
+  Principal
+  Lead
+  Designer
+  Developer
+  BA
+  Production
+}
+
+enum EmploymentType {
+  FullTime  @map("Full-time")
+  PartTime  @map("Part-time")
+  Contractor
+}
+
+model TeamMember {
+  id                  String         @id @default(uuid())
+  name                String
+  email               String         @unique
+  role                MemberRole
+  employmentType      EmploymentType @map("employment_type")
+  weeklyHours         Decimal        @map("weekly_hours")
+  hourlyRateInternal  Decimal        @default(0) @map("hourly_rate_internal")
+  hourlyRateBillable  Decimal        @default(0) @map("hourly_rate_billable")
+  managerId           String?        @map("manager_id")
+  harvestUserId       String?        @map("harvest_user_id")
+  isActive            Boolean        @default(true) @map("is_active")
+  startDate           DateTime       @map("start_date")
+  endDate             DateTime?      @map("end_date")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  manager          TeamMember?  @relation("ManagerReports", fields: [managerId], references: [id])
+  reports          TeamMember[] @relation("ManagerReports")
+  timeEntries      TimeEntry[]
+  healthUpdates    ProjectHealthUpdate[]
+
+  @@map("team_members")
+}
+
+model Client {
+  id                  String    @id @default(uuid())
+  name                String
+  industry            String?
+  primaryContactName  String?   @map("primary_contact_name")
+  primaryContactEmail String?   @map("primary_contact_email")
+  notes               String?
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  projects    Project[]
+  feedback    ClientFeedback[]
+
+  @@map("clients")
+}
+
+enum ProjectType {
+  FixedPrice  @map("Fixed Price")
+  TM          @map("Time & Materials")
+  SLA
+  RIInternal  @map("R&I Internal")
+}
+
+enum ProjectStatus {
+  Pipeline
+  Active
+  OnHold    @map("On Hold")
+  Completed
+  Lost
+}
+
+enum DealStage {
+  Lead
+  Qualified
+  Proposal
+  Negotiation
+  Won
+  Lost
+  Disqualified
+}
+
+enum DealLikelihood {
+  Low
+  Medium
+  High
+}
+
+model Project {
+  id                String         @id @default(uuid())
+  clientId          String         @map("client_id")
+  name              String
+  projectType       ProjectType    @map("project_type")
+  status            ProjectStatus  @default(Pipeline)
+  startDate         DateTime?      @map("start_date")
+  endDate           DateTime?      @map("end_date")
+  budget            Decimal        @default(0)
+  harvestProjectId  String?        @map("harvest_project_id")
+  dealStage         DealStage?     @map("deal_stage")
+  dealLikelihood    DealLikelihood? @map("deal_likelihood")
+  dealAmount        Decimal?       @map("deal_amount")
+  expectedCloseDate DateTime?      @map("expected_close_date")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  client      Client               @relation(fields: [clientId], references: [id])
+  healthUpdates ProjectHealthUpdate[]
+  financials  ProjectFinancial[]
+  timeEntries TimeEntry[]
+  contractors Contractor[]
+  feedback    ClientFeedback[]
+
+  @@map("projects")
+}
+
+enum RagStatus {
+  Green
+  Orange
+  Red
+}
+
+model ProjectHealthUpdate {
+  id             String    @id @default(uuid())
+  projectId      String    @map("project_id")
+  updateDate     DateTime  @map("update_date")
+  overallStatus  RagStatus @map("overall_status")
+  scheduleStatus RagStatus @map("schedule_status")
+  scopeStatus    RagStatus @map("scope_status")
+  budgetStatus   RagStatus @map("budget_status")
+  clientStatus   RagStatus @map("client_status")
+  notes          String?
+  updatedById    String?   @map("updated_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  project     Project     @relation(fields: [projectId], references: [id])
+  updatedBy   TeamMember? @relation(fields: [updatedById], references: [id])
+
+  @@map("project_health_updates")
+}
+
+model ProjectFinancial {
+  id                  String   @id @default(uuid())
+  projectId           String   @map("project_id")
+  month               DateTime
+  actualFees          Decimal  @default(0) @map("actual_fees")
+  estimateToComplete  Decimal  @default(0) @map("estimate_to_complete")
+  estimateAtComplete  Decimal  @default(0) @map("estimate_at_complete")
+  variance            Decimal  @default(0)
+  profitMargin        Decimal  @default(0) @map("profit_margin")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@unique([projectId, month])
+  @@map("project_financials")
+}
+
+model TimeEntry {
+  id             String    @id @default(uuid())
+  teamMemberId   String    @map("team_member_id")
+  projectId      String    @map("project_id")
+  date           DateTime
+  hours          Decimal
+  isBillable     Boolean   @default(true) @map("is_billable")
+  taskCategory   String?   @map("task_category")
+  notes          String?
+  harvestEntryId String?   @unique @map("harvest_entry_id")
+  syncedAt       DateTime? @map("synced_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  teamMember TeamMember @relation(fields: [teamMemberId], references: [id])
+  project    Project    @relation(fields: [projectId], references: [id])
+
+  @@map("time_entries")
+}
+
+enum ContractorStatus {
+  Active
+  Completed
+}
+
+model Contractor {
+  id         String           @id @default(uuid())
+  name       String
+  projectId  String           @map("project_id")
+  startDate  DateTime         @map("start_date")
+  endDate    DateTime?        @map("end_date")
+  totalCost  Decimal          @default(0) @map("total_cost")
+  status     ContractorStatus @default(Active)
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@map("contractors")
+}
+
+model ClientFeedback {
+  id                String   @id @default(uuid())
+  projectId         String   @map("project_id")
+  clientId          String   @map("client_id")
+  sentDate          DateTime @map("sent_date")
+  clientScore       Decimal? @map("client_score")
+  participationRate Decimal? @map("participation_rate")
+  happiness         Decimal?
+  confidence        Decimal?
+  collaboration     Decimal?
+  feedbackText      String?  @map("feedback_text")
+  respondentName    String?  @map("respondent_name")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+  client  Client  @relation(fields: [clientId], references: [id])
+
+  @@map("client_feedback")
+}
+
+model MonthlySnapshot {
+  id               String   @id @default(uuid())
+  month            DateTime @unique
+  totalRevenue     Decimal  @map("total_revenue")
+  totalCosts       Decimal  @map("total_costs")
+  grossProfit      Decimal  @map("gross_profit")
+  netProfit        Decimal  @map("net_profit")
+  netProfitMargin  Decimal  @map("net_profit_margin")
+  rAndIInvestment  Decimal  @default(0) @map("r_and_i_investment")
+  teamCount        Int      @map("team_count")
+  snapshotData     Json     @map("snapshot_data")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("monthly_snapshots")
+}
+
+model QuarterlyTarget {
+  id             String   @id @default(uuid())
+  quarter        String
+  startDate      DateTime @map("start_date")
+  endDate        DateTime @map("end_date")
+  targetRevenue  Decimal  @map("target_revenue")
+  targetCost     Decimal  @map("target_cost")
+  targetProfit   Decimal  @map("target_profit")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("quarterly_targets")
+}
+
+model MonthlyFinancial {
+  id             String   @id @default(uuid())
+  month          DateTime @unique
+  invoiced       Decimal  @default(0)
+  prepayments    Decimal  @default(0)
+  internalRevenue Decimal @default(0) @map("internal_revenue")
+  totalRevenue   Decimal  @default(0) @map("total_revenue")
+  wagesCost      Decimal  @default(0) @map("wages_cost")
+  contractorsCost Decimal @default(0) @map("contractors_cost")
+  travelCost     Decimal  @default(0) @map("travel_cost")
+  otherDirectCost Decimal @default(0) @map("other_direct_cost")
+  directCosts    Decimal  @default(0) @map("direct_costs")
+  grossProfit    Decimal  @default(0) @map("gross_profit")
+  grossMargin    Decimal  @default(0) @map("gross_margin")
+  indirectCosts  Decimal  @default(0) @map("indirect_costs")
+  netProfit      Decimal  @default(0) @map("net_profit")
+  netMargin      Decimal  @default(0) @map("net_margin")
+  rAndIHours     Decimal  @default(0) @map("r_and_i_hours")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("monthly_financials")
+}
+
+model HarvestSync {
+  id          String    @id @default(uuid())
+  syncType    String    @map("sync_type")
+  startedAt   DateTime  @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  status      String    @default("running")
+  entriesSync Int       @default(0) @map("entries_synced")
+  errors      String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("harvest_syncs")
+}
