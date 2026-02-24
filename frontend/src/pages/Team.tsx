@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Users, Activity } from 'lucide-react';
-import { format, subMonths } from 'date-fns';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Users, Activity, Plus, Pencil } from 'lucide-react';
+import { format } from 'date-fns';
 import api, { fmt } from '../lib/api';
 import Badge from '../components/ui/Badge';
+import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import type { TeamMember, MemberRole } from '../types';
+import type { TeamMember, MemberRole, EmploymentType } from '../types';
 
 const TARGET_UTILIZATION = 68.1;
 
@@ -64,10 +65,143 @@ interface TimesheetEntry {
   billableUtilization: number;
 }
 
+// ── Member Form (Create / Edit) ────────────────────────────────────────────────
+function MemberForm({ member, onClose }: { member?: TeamMember; onClose: () => void }) {
+  const qc = useQueryClient();
+  const isEdit = !!member;
+
+  const { data: allMembers } = useQuery<TeamMember[]>({
+    queryKey: ['team-all'],
+    queryFn: () => api.get('/team').then(r => r.data),
+  });
+
+  const [form, setForm] = useState({
+    name: member?.name ?? '',
+    email: member?.email ?? '',
+    role: member?.role ?? ('Developer' as MemberRole),
+    employmentType: member?.employmentType ?? ('FullTime' as EmploymentType),
+    weeklyHours: member?.weeklyHours?.toString() ?? '37.5',
+    hourlyRateInternal: member?.hourlyRateInternal?.toString() ?? '0',
+    hourlyRateBillable: member?.hourlyRateBillable?.toString() ?? '0',
+    managerId: member?.managerId ?? '',
+    startDate: member?.startDate?.slice(0, 10) ?? '',
+    endDate: member?.endDate?.slice(0, 10) ?? '',
+  });
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const payload = {
+        name: form.name,
+        email: form.email,
+        role: form.role,
+        employmentType: form.employmentType,
+        weeklyHours: parseFloat(form.weeklyHours) || 37.5,
+        hourlyRateInternal: parseFloat(form.hourlyRateInternal) || 0,
+        hourlyRateBillable: parseFloat(form.hourlyRateBillable) || 0,
+        managerId: form.managerId || undefined,
+        startDate: form.startDate,
+        endDate: form.endDate || undefined,
+      };
+      return isEdit
+        ? api.put(`/team/${member!.id}`, payload)
+        : api.post('/team', payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team'] });
+      qc.invalidateQueries({ queryKey: ['team-all'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Name *</label>
+          <input className="input" required value={form.name}
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Email *</label>
+          <input className="input" type="email" required value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Role</label>
+          <select className="input" value={form.role}
+            onChange={e => setForm(f => ({ ...f, role: e.target.value as MemberRole }))}>
+            {(['Principal', 'Lead', 'Designer', 'Developer', 'BA', 'Production'] as MemberRole[]).map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">Employment Type</label>
+          <select className="input" value={form.employmentType}
+            onChange={e => setForm(f => ({ ...f, employmentType: e.target.value as EmploymentType }))}>
+            <option value="FullTime">Full Time</option>
+            <option value="PartTime">Part Time</option>
+            <option value="Contractor">Contractor</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="label">Weekly Hours</label>
+          <input className="input" type="number" step="0.5" min="1" max="80" value={form.weeklyHours}
+            onChange={e => setForm(f => ({ ...f, weeklyHours: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Internal Rate/h</label>
+          <input className="input" type="number" step="0.01" min="0" value={form.hourlyRateInternal}
+            onChange={e => setForm(f => ({ ...f, hourlyRateInternal: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Billable Rate/h</label>
+          <input className="input" type="number" step="0.01" min="0" value={form.hourlyRateBillable}
+            onChange={e => setForm(f => ({ ...f, hourlyRateBillable: e.target.value }))} />
+        </div>
+      </div>
+      <div>
+        <label className="label">Manager</label>
+        <select className="input" value={form.managerId}
+          onChange={e => setForm(f => ({ ...f, managerId: e.target.value }))}>
+          <option value="">No manager</option>
+          {allMembers?.filter(m => m.id !== member?.id && m.isActive).map(m => (
+            <option key={m.id} value={m.id}>{m.name} — {m.role}</option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Start Date *</label>
+          <input className="input" type="date" required value={form.startDate}
+            onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">End Date</label>
+          <input className="input" type="date" value={form.endDate}
+            onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+        <button type="submit" disabled={mutation.isPending} className="btn-primary flex-1">
+          {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Member'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export default function Team() {
   const [tab, setTab] = useState<'overview' | 'timesheet'>('overview');
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(format(now, 'yyyy-MM'));
+  const [showCreate, setShowCreate] = useState(false);
+  const [editMember, setEditMember] = useState<TeamMember | null>(null);
 
   const [year, month] = selectedMonth.split('-').map(Number);
 
@@ -99,12 +233,17 @@ export default function Team() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Team & Utilization</h1>
-        <input
-          type="month"
-          className="input w-auto"
-          value={selectedMonth}
-          onChange={e => setSelectedMonth(e.target.value)}
-        />
+        <div className="flex items-center gap-3">
+          <input
+            type="month"
+            className="input w-auto"
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+          />
+          <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
+            <Plus size={15} />Add Member
+          </button>
+        </div>
       </div>
 
       {/* Tab toggle */}
@@ -225,15 +364,20 @@ export default function Team() {
                         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{group}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                           {groupMembers.map(m => (
-                            <div key={m.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50">
-                              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-semibold">
+                            <div key={m.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 group">
+                              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-semibold shrink-0">
                                 {m.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                               </div>
-                              <div>
-                                <p className="text-sm font-medium text-gray-900">{m.name}</p>
-                                <p className="text-xs text-gray-400">{m.weeklyHours}h/week</p>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-900 truncate">{m.name}</p>
+                                <p className="text-xs text-gray-400">{m.weeklyHours}h/week{m.manager ? ` · ${m.manager.name}` : ''}</p>
                               </div>
-                              {m.manager && <p className="text-xs text-gray-400 ml-auto">→ {m.manager.name}</p>}
+                              <button
+                                onClick={() => setEditMember(m)}
+                                className="p-1.5 text-gray-300 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-all rounded"
+                              >
+                                <Pencil size={13} />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -289,6 +433,14 @@ export default function Team() {
           )}
         </>
       )}
+
+      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Add Team Member">
+        <MemberForm onClose={() => setShowCreate(false)} />
+      </Modal>
+
+      <Modal isOpen={!!editMember} onClose={() => setEditMember(null)} title="Edit Team Member">
+        {editMember && <MemberForm member={editMember} onClose={() => setEditMember(null)} />}
+      </Modal>
     </div>
   );
 }

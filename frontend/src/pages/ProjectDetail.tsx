@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Plus, Clock, TrendingUp, Users, BarChart2, DollarSign, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, Clock, TrendingUp, Users, BarChart2, DollarSign, Trash2, Pencil } from 'lucide-react';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import api, { fmt } from '../lib/api';
 import RagBadge from '../components/ui/RagBadge';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import type { Project, RagStatus, ProjectHealthUpdate, ProjectAssignment, ProjectCosts, TeamMember } from '../types';
+import type { Project, RagStatus, ProjectHealthUpdate, ProjectAssignment, ProjectCosts, TeamMember, Client, MemberRole } from '../types';
 
-type Tab = 'overview' | 'team' | 'timeline' | 'costs';
+type Tab = 'overview' | 'team' | 'time' | 'timeline' | 'costs';
 
 const ragOptions: RagStatus[] = ['Green', 'Orange', 'Red'];
 const ragDimensions = [
@@ -181,6 +181,105 @@ function AddMemberForm({ projectId, existingIds, onClose }: {
         <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
         <button type="submit" disabled={mutation.isPending || !form.teamMemberId} className="btn-primary flex-1">
           {mutation.isPending ? 'Adding…' : 'Add to Project'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── Edit Project Form ──────────────────────────────────────────────────────────
+function EditProjectForm({ project, onClose }: { project: Project; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: clients } = useQuery<Client[]>({
+    queryKey: ['clients'],
+    queryFn: () => api.get('/clients').then(r => r.data),
+  });
+
+  const [form, setForm] = useState({
+    name: project.name,
+    clientId: project.clientId,
+    projectType: project.projectType,
+    status: project.status,
+    startDate: project.startDate?.slice(0, 10) ?? '',
+    endDate: project.endDate?.slice(0, 10) ?? '',
+    budget: project.budget?.toString() ?? '0',
+  });
+
+  const mutation = useMutation({
+    mutationFn: () => api.put(`/projects/${project.id}`, {
+      name: form.name,
+      clientId: form.clientId,
+      projectType: form.projectType,
+      status: form.status,
+      startDate: form.startDate || undefined,
+      endDate: form.endDate || undefined,
+      budget: parseFloat(form.budget) || 0,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['project', project.id] });
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
+      <div>
+        <label className="label">Project Name *</label>
+        <input className="input" required value={form.name}
+          onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div>
+        <label className="label">Client</label>
+        <select className="input" value={form.clientId}
+          onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}>
+          {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Type</label>
+          <select className="input" value={form.projectType}
+            onChange={e => setForm(f => ({ ...f, projectType: e.target.value as any }))}>
+            <option value="FixedPrice">Fixed Price</option>
+            <option value="TM">Time & Materials</option>
+            <option value="SLA">SLA</option>
+            <option value="RIInternal">R&I Internal</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Status</label>
+          <select className="input" value={form.status}
+            onChange={e => setForm(f => ({ ...f, status: e.target.value as any }))}>
+            <option value="Pipeline">Pipeline</option>
+            <option value="Active">Active</option>
+            <option value="OnHold">On Hold</option>
+            <option value="Completed">Completed</option>
+            <option value="Lost">Lost</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="label">Budget (AUD)</label>
+        <input className="input" type="number" step="1000" min="0" value={form.budget}
+          onChange={e => setForm(f => ({ ...f, budget: e.target.value }))} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Start Date</label>
+          <input className="input" type="date" value={form.startDate}
+            onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">End Date</label>
+          <input className="input" type="date" value={form.endDate}
+            onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+        <button type="submit" disabled={mutation.isPending} className="btn-primary flex-1">
+          {mutation.isPending ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
     </form>
@@ -575,11 +674,201 @@ function CostsTab({ projectId, budget }: { projectId: string; budget: number }) 
   );
 }
 
+// ── Time Summary Tab ───────────────────────────────────────────────────────────
+interface TimeSummaryEntry {
+  id: string;
+  name: string;
+  role: MemberRole;
+  billableHours: number;
+  nonBillableHours: number;
+}
+
+function TimeSummaryTab({ projectId, project }: { projectId: string; project: Project }) {
+  const { data: timeSummary = [], isLoading } = useQuery<TimeSummaryEntry[]>({
+    queryKey: ['project-time-summary', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/time-summary`).then(r => r.data),
+  });
+
+  const { data: assignments = [] } = useQuery<ProjectAssignment[]>({
+    queryKey: ['project-members', projectId],
+    queryFn: () => api.get(`/projects/${projectId}/members`).then(r => r.data),
+  });
+
+  if (isLoading) return <LoadingSpinner className="py-12" />;
+
+  const totalBillable = timeSummary.reduce((s, m) => s + m.billableHours, 0);
+  const totalNonBillable = timeSummary.reduce((s, m) => s + m.nonBillableHours, 0);
+  const totalHours = totalBillable + totalNonBillable;
+  const totalEstimated = assignments.reduce((s, a) => s + Number(a.estimatedHours ?? 0), 0);
+
+  let timeElapsedPct: number | null = null;
+  if (project.startDate && project.endDate) {
+    const start = new Date(project.startDate).getTime();
+    const end = new Date(project.endDate).getTime();
+    const now = Date.now();
+    timeElapsedPct = Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100));
+  }
+
+  const hoursConsumedPct = totalEstimated > 0 ? (totalHours / totalEstimated) * 100 : null;
+
+  let onTrackStatus: 'on-track' | 'over' | 'under' | 'no-data' = 'no-data';
+  if (timeElapsedPct !== null && hoursConsumedPct !== null) {
+    const diff = hoursConsumedPct - timeElapsedPct;
+    if (diff > 10) onTrackStatus = 'over';
+    else if (diff < -15) onTrackStatus = 'under';
+    else onTrackStatus = 'on-track';
+  }
+
+  const roleColor: Record<string, string> = {
+    Principal: 'purple', Lead: 'indigo', Designer: 'pink',
+    Developer: 'blue', BA: 'amber', Production: 'green',
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card text-center">
+          <p className="label">Total Hours</p>
+          <p className="text-2xl font-bold text-gray-900">{fmt.hours(totalHours)}</p>
+        </div>
+        <div className="card text-center">
+          <p className="label">Billable</p>
+          <p className="text-2xl font-bold text-green-600">{fmt.hours(totalBillable)}</p>
+          {totalHours > 0 && <p className="text-xs text-gray-400 mt-0.5">{fmt.percent((totalBillable / totalHours) * 100)}</p>}
+        </div>
+        <div className="card text-center">
+          <p className="label">Non-Billable</p>
+          <p className="text-2xl font-bold text-gray-500">{fmt.hours(totalNonBillable)}</p>
+        </div>
+        <div className="card text-center">
+          <p className="label">vs Estimated</p>
+          {totalEstimated > 0 ? (
+            <>
+              <p className={`text-2xl font-bold ${hoursConsumedPct! > 100 ? 'text-red-600' : 'text-gray-900'}`}>
+                {fmt.percent(hoursConsumedPct!)}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">of {fmt.hours(totalEstimated)}</p>
+            </>
+          ) : <p className="text-xl font-bold text-gray-300">—</p>}
+        </div>
+      </div>
+
+      {/* Burn rate */}
+      {timeElapsedPct !== null && (
+        <div className="card">
+          <h3 className="font-semibold text-gray-900 mb-4">Project Burn Rate</h3>
+          <div className="space-y-3">
+            <div>
+              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                <span>Time elapsed</span>
+                <span>{fmt.percent(timeElapsedPct)}</span>
+              </div>
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${Math.min(100, timeElapsedPct)}%` }} />
+              </div>
+            </div>
+            {hoursConsumedPct !== null && (
+              <div>
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>Hours consumed</span>
+                  <span>{fmt.percent(hoursConsumedPct)} ({fmt.hours(totalHours)} of {fmt.hours(totalEstimated)})</span>
+                </div>
+                <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${hoursConsumedPct > 100 ? 'bg-red-500' : hoursConsumedPct > timeElapsedPct + 10 ? 'bg-amber-500' : 'bg-green-500'}`}
+                    style={{ width: `${Math.min(100, hoursConsumedPct)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            <div className={`flex items-center gap-2 p-2.5 rounded-lg text-sm font-medium ${
+              onTrackStatus === 'on-track' ? 'bg-green-50 text-green-700' :
+              onTrackStatus === 'over' ? 'bg-red-50 text-red-700' :
+              onTrackStatus === 'under' ? 'bg-amber-50 text-amber-700' :
+              'bg-gray-50 text-gray-500'
+            }`}>
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                onTrackStatus === 'on-track' ? 'bg-green-500' :
+                onTrackStatus === 'over' ? 'bg-red-500' :
+                onTrackStatus === 'under' ? 'bg-amber-500' : 'bg-gray-300'
+              }`} />
+              {onTrackStatus === 'on-track' ? 'On track — hours consumed aligns with project timeline' :
+               onTrackStatus === 'over' ? 'Attention — hours consumed is running ahead of the project timeline' :
+               onTrackStatus === 'under' ? 'Under-tracked — hours are behind the expected timeline' :
+               'Set estimated hours on team assignments to track burn rate'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Per-member breakdown */}
+      {timeSummary.length > 0 ? (
+        <div className="card">
+          <h3 className="font-semibold text-gray-900 mb-4">Hours by Team Member</h3>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="table-th pl-0">Member</th>
+                <th className="table-th text-right">Billable</th>
+                <th className="table-th text-right">Non-Billable</th>
+                <th className="table-th text-right">Total</th>
+                <th className="table-th text-right hidden md:table-cell">Estimated</th>
+                <th className="table-th text-right">% Used</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {timeSummary.map(m => {
+                const assignment = assignments.find(a => a.teamMemberId === m.id);
+                const estimated = Number(assignment?.estimatedHours ?? 0);
+                const total = m.billableHours + m.nonBillableHours;
+                const pctUsed = estimated > 0 ? (total / estimated) * 100 : null;
+                const overrun = pctUsed !== null && pctUsed > 100;
+                return (
+                  <tr key={m.id} className="hover:bg-gray-50">
+                    <td className="table-td pl-0">
+                      <p className="font-medium text-gray-900">{m.name}</p>
+                      <Badge variant={(roleColor[m.role] ?? 'gray') as any}>{m.role}</Badge>
+                    </td>
+                    <td className="table-td text-right text-green-700 font-medium">{fmt.hours(m.billableHours)}</td>
+                    <td className="table-td text-right text-gray-400">{m.nonBillableHours > 0 ? fmt.hours(m.nonBillableHours) : '—'}</td>
+                    <td className="table-td text-right font-semibold">{fmt.hours(total)}</td>
+                    <td className="table-td text-right text-gray-500 hidden md:table-cell">{estimated > 0 ? fmt.hours(estimated) : '—'}</td>
+                    <td className={`table-td text-right font-medium ${overrun ? 'text-red-600' : 'text-gray-900'}`}>
+                      {pctUsed !== null ? fmt.percent(pctUsed) : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot className="border-t-2 border-gray-200">
+              <tr>
+                <td className="table-td pl-0 font-semibold text-gray-700">Total</td>
+                <td className="table-td text-right font-semibold text-green-700">{fmt.hours(totalBillable)}</td>
+                <td className="table-td text-right font-semibold text-gray-400">{totalNonBillable > 0 ? fmt.hours(totalNonBillable) : '—'}</td>
+                <td className="table-td text-right font-bold">{fmt.hours(totalHours)}</td>
+                <td className="table-td text-right font-semibold text-gray-500 hidden md:table-cell">{totalEstimated > 0 ? fmt.hours(totalEstimated) : '—'}</td>
+                <td className="table-td text-right font-semibold">{totalEstimated > 0 ? fmt.percent((totalHours / totalEstimated) * 100) : '—'}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      ) : (
+        <div className="card text-center py-12">
+          <Clock size={32} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-400 text-sm">No time entries logged yet for this project</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [showHealthUpdate, setShowHealthUpdate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const { data: project, isLoading } = useQuery<Project & {
     contractors: any[];
@@ -598,6 +887,7 @@ export default function ProjectDetail() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'overview', label: 'Overview', icon: <TrendingUp size={14} /> },
     { id: 'team', label: 'Team', icon: <Users size={14} /> },
+    { id: 'time', label: 'Time Tracking', icon: <Clock size={14} /> },
     { id: 'timeline', label: 'Timeline', icon: <BarChart2 size={14} /> },
     { id: 'costs', label: 'Costs & Margin', icon: <DollarSign size={14} /> },
   ];
@@ -629,9 +919,14 @@ export default function ProjectDetail() {
             {fmt.date(project.startDate)} → {fmt.date(project.endDate)}
           </p>
         </div>
-        <button onClick={() => setShowHealthUpdate(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={16} />Update Health
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowEdit(true)} className="btn-secondary flex items-center gap-2">
+            <Pencil size={15} />Edit Project
+          </button>
+          <button onClick={() => setShowHealthUpdate(true)} className="btn-primary flex items-center gap-2">
+            <Plus size={16} />Update Health
+          </button>
+        </div>
       </div>
 
       {/* KPI strip */}
@@ -792,6 +1087,8 @@ export default function ProjectDetail() {
 
       {activeTab === 'team' && id && <TeamTab projectId={id} />}
 
+      {activeTab === 'time' && id && <TimeSummaryTab projectId={id} project={project} />}
+
       {activeTab === 'timeline' && <TimelineTab project={project as any} />}
 
       {activeTab === 'costs' && id && (
@@ -800,6 +1097,10 @@ export default function ProjectDetail() {
 
       <Modal isOpen={showHealthUpdate} onClose={() => setShowHealthUpdate(false)} title="Update Health Status">
         {id && <HealthUpdateForm projectId={id} onClose={() => setShowHealthUpdate(false)} />}
+      </Modal>
+
+      <Modal isOpen={showEdit} onClose={() => setShowEdit(false)} title="Edit Project">
+        <EditProjectForm project={project} onClose={() => setShowEdit(false)} />
       </Modal>
     </div>
   );
