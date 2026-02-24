@@ -50,10 +50,11 @@ model TeamMember {
   createdAt           DateTime       @default(now()) @map("created_at")
   updatedAt           DateTime       @updatedAt @map("updated_at")
 
-  manager          TeamMember?  @relation("ManagerReports", fields: [managerId], references: [id])
-  reports          TeamMember[] @relation("ManagerReports")
+  manager          TeamMember?          @relation("ManagerReports", fields: [managerId], references: [id])
+  reports          TeamMember[]         @relation("ManagerReports")
   timeEntries      TimeEntry[]
   healthUpdates    ProjectHealthUpdate[]
+  assignments      ProjectAssignment[]
 
   @@map("team_members")
 }
@@ -122,14 +123,34 @@ model Project {
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
-  client      Client               @relation(fields: [clientId], references: [id])
+  client        Client               @relation(fields: [clientId], references: [id])
   healthUpdates ProjectHealthUpdate[]
-  financials  ProjectFinancial[]
-  timeEntries TimeEntry[]
-  contractors Contractor[]
-  feedback    ClientFeedback[]
+  financials    ProjectFinancial[]
+  timeEntries   TimeEntry[]
+  contractors   Contractor[]
+  feedback      ClientFeedback[]
+  assignments   ProjectAssignment[]
 
   @@map("projects")
+}
+
+model ProjectAssignment {
+  id             String    @id @default(uuid())
+  projectId      String    @map("project_id")
+  teamMemberId   String    @map("team_member_id")
+  allocationPct  Decimal   @default(100) @map("allocation_pct")
+  startDate      DateTime? @map("start_date")
+  endDate        DateTime? @map("end_date")
+  estimatedHours Decimal?  @map("estimated_hours")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  teamMember TeamMember @relation(fields: [teamMemberId], references: [id])
+
+  @@unique([projectId, teamMemberId])
+  @@map("project_assignments")
 }
 
 enum RagStatus {

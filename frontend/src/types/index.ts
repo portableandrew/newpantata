@@ -98,6 +98,55 @@ export interface MonthlyFinancial {
   notes?: string;
 }
 
+export interface ProjectAssignment {
+  id: string;
+  projectId: string;
+  teamMemberId: string;
+  allocationPct: number;
+  startDate?: string;
+  endDate?: string;
+  estimatedHours?: number;
+  notes?: string;
+  teamMember: {
+    id: string;
+    name: string;
+    role: MemberRole;
+    hourlyRateInternal: number;
+    hourlyRateBillable: number;
+    email: string;
+  };
+}
+
+export interface ProjectCosts {
+  budget: number;
+  memberCosts: {
+    assignmentId: string;
+    teamMemberId: string;
+    name: string;
+    role: MemberRole;
+    allocationPct: number;
+    estimatedHours: number;
+    actualHours: number;
+    internalRate: number;
+    billableRate: number;
+    estimatedCost: number;
+    actualCost: number;
+    estimatedRevenue: number;
+    actualRevenue: number;
+  }[];
+  contractors: { name: string; cost: number; status: string }[];
+  totals: {
+    estimatedLaborCost: number;
+    actualLaborCost: number;
+    estimatedRevenue: number;
+    actualRevenue: number;
+    contractorCost: number;
+    totalDirectCost: number;
+    grossProfit: number;
+    margin: number;
+  };
+}
+
 export interface DashboardData {
   activeProjectsCount: number;
   alertProjectsCount: number;

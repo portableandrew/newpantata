@@ -156,4 +156,175 @@ router.get('/:id/time-summary', async (req, res) => {
   res.json(result);
 });
 
+// GET project team assignments
+router.get('/:id/members', async (req, res) => {
+  const assignments = await prisma.projectAssignment.findMany({
+    where: { projectId: req.params.id },
+    include: {
+      teamMember: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          hourlyRateInternal: true,
+          hourlyRateBillable: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  res.json(assignments);
+});
+
+// POST add team member to project
+router.post('/:id/members', async (req, res) => {
+  const { teamMemberId, allocationPct, startDate, endDate, estimatedHours, notes } = req.body;
+  const assignment = await prisma.projectAssignment.create({
+    data: {
+      projectId: req.params.id,
+      teamMemberId,
+      allocationPct: allocationPct ?? 100,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      estimatedHours: estimatedHours ?? undefined,
+      notes: notes ?? undefined,
+    },
+    include: {
+      teamMember: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          hourlyRateInternal: true,
+          hourlyRateBillable: true,
+          email: true,
+        },
+      },
+    },
+  });
+  res.status(201).json(assignment);
+});
+
+// PUT update team member assignment
+router.put('/:id/members/:assignmentId', async (req, res) => {
+  const { allocationPct, startDate, endDate, estimatedHours, notes } = req.body;
+  const assignment = await prisma.projectAssignment.update({
+    where: { id: req.params.assignmentId },
+    data: {
+      allocationPct: allocationPct ?? undefined,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      estimatedHours: estimatedHours ?? undefined,
+      notes: notes ?? undefined,
+    },
+    include: {
+      teamMember: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          hourlyRateInternal: true,
+          hourlyRateBillable: true,
+          email: true,
+        },
+      },
+    },
+  });
+  res.json(assignment);
+});
+
+// DELETE remove team member from project
+router.delete('/:id/members/:assignmentId', async (req, res) => {
+  await prisma.projectAssignment.delete({ where: { id: req.params.assignmentId } });
+  res.status(204).send();
+});
+
+// GET project costs breakdown
+router.get('/:id/costs', async (req, res) => {
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: req.params.id },
+    select: { budget: true, startDate: true, endDate: true },
+  });
+
+  const assignments = await prisma.projectAssignment.findMany({
+    where: { projectId: req.params.id },
+    include: {
+      teamMember: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          hourlyRateInternal: true,
+          hourlyRateBillable: true,
+        },
+      },
+    },
+  });
+
+  // Actual logged hours per team member
+  const timeGroups = await prisma.timeEntry.groupBy({
+    by: ['teamMemberId', 'isBillable'],
+    where: { projectId: req.params.id },
+    _sum: { hours: true },
+  });
+
+  const contractors = await prisma.contractor.findMany({
+    where: { projectId: req.params.id },
+    select: { name: true, totalCost: true, status: true },
+  });
+
+  const memberCosts = assignments.map(a => {
+    const billableHoursEntry = timeGroups.find(t => t.teamMemberId === a.teamMemberId && t.isBillable);
+    const nonBillableHoursEntry = timeGroups.find(t => t.teamMemberId === a.teamMemberId && !t.isBillable);
+    const actualHours = Number(billableHoursEntry?._sum.hours || 0) + Number(nonBillableHoursEntry?._sum.hours || 0);
+    const estimatedHours = Number(a.estimatedHours || 0);
+    const internalRate = Number(a.teamMember.hourlyRateInternal);
+    const billableRate = Number(a.teamMember.hourlyRateBillable);
+
+    return {
+      assignmentId: a.id,
+      teamMemberId: a.teamMember.id,
+      name: a.teamMember.name,
+      role: a.teamMember.role,
+      allocationPct: Number(a.allocationPct),
+      estimatedHours,
+      actualHours,
+      internalRate,
+      billableRate,
+      estimatedCost: estimatedHours * internalRate,
+      actualCost: actualHours * internalRate,
+      estimatedRevenue: estimatedHours * billableRate,
+      actualRevenue: actualHours * billableRate,
+    };
+  });
+
+  const totalEstimatedCost = memberCosts.reduce((s, m) => s + m.estimatedCost, 0);
+  const totalActualCost = memberCosts.reduce((s, m) => s + m.actualCost, 0);
+  const totalEstimatedRevenue = memberCosts.reduce((s, m) => s + m.estimatedRevenue, 0);
+  const totalActualRevenue = memberCosts.reduce((s, m) => s + m.actualRevenue, 0);
+  const contractorCost = contractors.reduce((s, c) => s + Number(c.totalCost), 0);
+  const budget = Number(project.budget);
+
+  const totalDirectCost = totalActualCost + contractorCost;
+  const grossProfit = budget > 0 ? budget - totalDirectCost : totalActualRevenue - totalDirectCost;
+  const margin = budget > 0 ? (grossProfit / budget) * 100 : totalActualRevenue > 0 ? (grossProfit / totalActualRevenue) * 100 : 0;
+
+  res.json({
+    budget,
+    memberCosts,
+    contractors: contractors.map(c => ({ name: c.name, cost: Number(c.totalCost), status: c.status })),
+    totals: {
+      estimatedLaborCost: totalEstimatedCost,
+      actualLaborCost: totalActualCost,
+      estimatedRevenue: totalEstimatedRevenue,
+      actualRevenue: totalActualRevenue,
+      contractorCost,
+      totalDirectCost,
+      grossProfit,
+      margin,
+    },
+  });
+});
+
 export default router;
