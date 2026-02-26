@@ -6,7 +6,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { errorHandler } from './middleware/errorHandler';
+import { requireAuth } from './middleware/auth';
+import authRouter from './routes/auth';
 import projectsRouter from './routes/projects';
+import projectMembersRouter from './routes/projectMembers';
 import clientsRouter from './routes/clients';
 import teamRouter from './routes/team';
 import financialsRouter from './routes/financials';
@@ -15,28 +18,34 @@ import pipelineRouter from './routes/pipeline';
 import harvestRouter from './routes/harvest';
 import utilizationRouter from './routes/utilization';
 import dashboardRouter from './routes/dashboard';
+import timeEntriesRouter from './routes/timeEntries';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000'] }));
+app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'] }));
 app.use(express.json());
 
-// Health check
+// Health check (public)
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API routes
-app.use('/api/dashboard', dashboardRouter);
-app.use('/api/projects', projectsRouter);
-app.use('/api/clients', clientsRouter);
-app.use('/api/team', teamRouter);
-app.use('/api/financials', financialsRouter);
-app.use('/api/reports', reportsRouter);
-app.use('/api/pipeline', pipelineRouter);
-app.use('/api/harvest', harvestRouter);
-app.use('/api/utilization', utilizationRouter);
+// Auth routes (public login, protected user management)
+app.use('/api/auth', authRouter);
+
+// All other API routes require auth
+app.use('/api/dashboard', requireAuth, dashboardRouter);
+app.use('/api/projects', requireAuth, projectsRouter);
+app.use('/api/projects', requireAuth, projectMembersRouter);
+app.use('/api/clients', requireAuth, clientsRouter);
+app.use('/api/team', requireAuth, teamRouter);
+app.use('/api/financials', requireAuth, financialsRouter);
+app.use('/api/reports', requireAuth, reportsRouter);
+app.use('/api/pipeline', requireAuth, pipelineRouter);
+app.use('/api/harvest', requireAuth, harvestRouter);
+app.use('/api/utilization', requireAuth, utilizationRouter);
+app.use('/api/time-entries', requireAuth, timeEntriesRouter);
 
 app.use(errorHandler);
 

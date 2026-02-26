@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Plus, Clock, TrendingUp } from 'lucide-react';
+import { ChevronLeft, Plus, TrendingUp, Edit2, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import api, { fmt } from '../lib/api';
 import RagBadge from '../components/ui/RagBadge';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
-import type { Project, RagStatus, ProjectHealthUpdate } from '../types';
+import ProjectTeam from '../components/project/ProjectTeam';
+import TimeEntryLog from '../components/project/TimeEntryLog';
+import type { Project, RagStatus, ProjectHealthUpdate, TeamMember } from '../types';
 
 type RagChoice = RagStatus;
-
 const ragOptions: RagChoice[] = ['Green', 'Orange', 'Red'];
 
 function HealthUpdateForm({ projectId, onClose }: { projectId: string; onClose: () => void }) {
@@ -67,36 +68,133 @@ function HealthUpdateForm({ projectId, onClose }: { projectId: string; onClose: 
         <RagSelector field="overallStatus" />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="label mb-2">Schedule</label>
-          <RagSelector field="scheduleStatus" />
-        </div>
-        <div>
-          <label className="label mb-2">Scope</label>
-          <RagSelector field="scopeStatus" />
-        </div>
-        <div>
-          <label className="label mb-2">Budget</label>
-          <RagSelector field="budgetStatus" />
-        </div>
-        <div>
-          <label className="label mb-2">Client</label>
-          <RagSelector field="clientStatus" />
-        </div>
+        <div><label className="label mb-2">Schedule</label><RagSelector field="scheduleStatus" /></div>
+        <div><label className="label mb-2">Scope</label><RagSelector field="scopeStatus" /></div>
+        <div><label className="label mb-2">Budget</label><RagSelector field="budgetStatus" /></div>
+        <div><label className="label mb-2">Client</label><RagSelector field="clientStatus" /></div>
       </div>
       <div>
         <label className="label">Notes</label>
-        <textarea
-          className="input h-24 resize-none"
-          value={form.notes}
-          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-          placeholder="Any notable updates, risks, or actions..."
-        />
+        <textarea className="input h-24 resize-none" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any notable updates, risks, or actions..." />
       </div>
       <div className="flex gap-3">
         <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
         <button type="submit" disabled={mutation.isPending} className="btn-primary flex-1">
           {mutation.isPending ? 'Saving…' : 'Save Update'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function EditProjectModal({ project, onClose }: { project: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: clients } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['clients'],
+    queryFn: () => api.get('/clients').then(r => r.data),
+  });
+  const { data: teamMembers } = useQuery<TeamMember[]>({
+    queryKey: ['team'],
+    queryFn: () => api.get('/team?active=true').then(r => r.data),
+  });
+
+  const [form, setForm] = useState({
+    name: project.name,
+    clientId: project.clientId,
+    status: project.status,
+    projectType: project.projectType,
+    projectManagerId: project.projectManagerId ?? '',
+    budget: String(project.budget ?? ''),
+    budgetHours: String(project.budgetHours ?? ''),
+    startDate: project.startDate ? format(new Date(project.startDate), 'yyyy-MM-dd') : '',
+    endDate: project.endDate ? format(new Date(project.endDate), 'yyyy-MM-dd') : '',
+    description: project.description ?? '',
+  });
+
+  const mutation = useMutation({
+    mutationFn: () => api.put(`/projects/${project.id}`, {
+      ...form,
+      budget: parseFloat(form.budget) || 0,
+      budgetHours: parseFloat(form.budgetHours) || 0,
+      projectManagerId: form.projectManagerId || null,
+      startDate: form.startDate || null,
+      endDate: form.endDate || null,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['project', project.id] });
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      onClose();
+    },
+  });
+
+  return (
+    <form onSubmit={e => { e.preventDefault(); mutation.mutate(); }} className="space-y-4">
+      <div>
+        <label className="label">Project Name *</label>
+        <input className="input" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Client</label>
+          <select className="input" value={form.clientId} onChange={e => setForm(f => ({ ...f, clientId: e.target.value }))}>
+            {clients?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Project Manager</label>
+          <select className="input" value={form.projectManagerId} onChange={e => setForm(f => ({ ...f, projectManagerId: e.target.value }))}>
+            <option value="">Unassigned</option>
+            {teamMembers?.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Status</label>
+          <select className="input" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+            {['Pipeline', 'Active', 'OnHold', 'Completed', 'Lost'].map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">Type</label>
+          <select className="input" value={form.projectType} onChange={e => setForm(f => ({ ...f, projectType: e.target.value }))}>
+            {['FixedPrice', 'TM', 'SLA', 'RIInternal'].map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Budget ($)</label>
+          <input className="input" type="number" value={form.budget} onChange={e => setForm(f => ({ ...f, budget: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Budget (Hours)</label>
+          <input className="input" type="number" value={form.budgetHours} onChange={e => setForm(f => ({ ...f, budgetHours: e.target.value }))} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Start Date</label>
+          <input className="input" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">End Date</label>
+          <input className="input" type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
+        </div>
+      </div>
+      <div>
+        <label className="label">Description</label>
+        <textarea className="input h-20 resize-none" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+      </div>
+      {mutation.isError && <p className="text-sm text-red-600">Failed to save changes</p>}
+      <div className="flex gap-3">
+        <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+        <button type="submit" disabled={mutation.isPending} className="btn-primary flex-1">
+          {mutation.isPending ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
     </form>
@@ -110,14 +208,25 @@ const ragDimensions = [
   { key: 'clientStatus', label: 'Client' },
 ] as const;
 
+const typeLabel: Record<string, string> = {
+  FixedPrice: 'Fixed Price',
+  TM: 'Time & Materials',
+  SLA: 'SLA',
+  RIInternal: 'R&I Internal',
+};
+
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const [showHealthUpdate, setShowHealthUpdate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const { data: project, isLoading } = useQuery<Project & {
     contractors: any[];
     feedback: any[];
     timeEntries: any[];
+    projectManager?: { id: string; name: string };
+    description?: string;
+    budgetHours?: number;
   }>({
     queryKey: ['project', id],
     queryFn: () => api.get(`/projects/${id}`).then(r => r.data),
@@ -127,12 +236,6 @@ export default function ProjectDetail() {
   if (!project) return <div className="text-gray-400">Project not found</div>;
 
   const latest = project.healthUpdates?.[0];
-  const typeLabel: Record<string, string> = {
-    FixedPrice: 'Fixed Price',
-    TM: 'Time & Materials',
-    SLA: 'SLA',
-    RIInternal: 'R&I Internal',
-  };
 
   return (
     <div className="space-y-6">
@@ -153,36 +256,45 @@ export default function ProjectDetail() {
             {latest && <RagBadge status={latest.overallStatus} />}
             <Badge variant="blue">{typeLabel[project.projectType]}</Badge>
             <Badge variant={project.status === 'Active' ? 'green' : project.status === 'OnHold' ? 'amber' : 'gray'}>
-              {project.status}
+              {project.status === 'OnHold' ? 'On Hold' : project.status}
             </Badge>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
           <p className="text-gray-500 mt-0.5">{project.client.name}</p>
+          {project.projectManager && (
+            <p className="text-xs text-gray-400 mt-0.5">PM: {project.projectManager.name}</p>
+          )}
           <p className="text-xs text-gray-400 mt-1">
             {fmt.date(project.startDate)} → {fmt.date(project.endDate)}
           </p>
+          {project.description && (
+            <p className="text-sm text-gray-500 mt-2 max-w-lg">{project.description}</p>
+          )}
         </div>
-        <button
-          onClick={() => setShowHealthUpdate(true)}
-          className="btn-primary flex items-center gap-2"
-        >
-          <Plus size={16} />
-          Update Health Status
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowEdit(true)} className="btn-secondary flex items-center gap-2">
+            <Edit2 size={14} />
+            Edit
+          </button>
+          <button onClick={() => setShowHealthUpdate(true)} className="btn-primary flex items-center gap-2">
+            <Plus size={16} />
+            Update Health
+          </button>
+        </div>
       </div>
 
       {/* Financial Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="card text-center">
-          <p className="label">Budget</p>
+          <p className="label">Budget ($)</p>
           <p className="text-xl font-bold text-gray-900">{fmt.currency(Number(project.budget))}</p>
+        </div>
+        <div className="card text-center">
+          <p className="label">Budget (hrs)</p>
+          <p className="text-xl font-bold text-gray-900">{fmt.hours(Number(project.budgetHours ?? 0))}</p>
         </div>
         {project.financials?.[0] ? (
           <>
-            <div className="card text-center">
-              <p className="label">Actual Fees</p>
-              <p className="text-xl font-bold text-gray-900">{fmt.currency(Number(project.financials[0].actualFees))}</p>
-            </div>
             <div className="card text-center">
               <p className="label">EAC</p>
               <p className="text-xl font-bold text-gray-900">{fmt.currency(Number(project.financials[0].estimateAtComplete))}</p>
@@ -195,13 +307,13 @@ export default function ProjectDetail() {
             </div>
           </>
         ) : (
-          <div className="col-span-3 card flex items-center justify-center">
+          <div className="col-span-2 card flex items-center justify-center">
             <p className="text-sm text-gray-400">No financial data recorded yet</p>
           </div>
         )}
       </div>
 
-      {/* Health Status Grid */}
+      {/* Health Status */}
       {latest && (
         <div className="card">
           <h2 className="font-semibold text-gray-900 mb-4">Current Health Status</h2>
@@ -209,29 +321,25 @@ export default function ProjectDetail() {
             {ragDimensions.map(({ key, label }) => (
               <div key={key} className="text-center">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{label}</p>
-                <div className="flex justify-center">
-                  <RagBadge status={latest[key]} />
-                </div>
+                <div className="flex justify-center"><RagBadge status={latest[key]} /></div>
               </div>
             ))}
           </div>
-          {latest.notes && (
-            <p className="mt-4 text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{latest.notes}</p>
-          )}
+          {latest.notes && <p className="mt-4 text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{latest.notes}</p>}
           <p className="mt-2 text-xs text-gray-400">Last updated {fmt.date(latest.updateDate)}</p>
         </div>
       )}
 
       {/* Health History */}
-      {project.healthUpdates?.length > 0 && (
+      {project.healthUpdates?.length > 1 && (
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
-            <Clock size={16} className="text-indigo-500" />
+            <TrendingUp size={16} className="text-indigo-500" />
             <h2 className="font-semibold text-gray-900">Health History</h2>
           </div>
           <div className="space-y-3">
-            {project.healthUpdates.map((u: ProjectHealthUpdate, i: number) => (
-              <div key={u.id} className={`flex items-start gap-4 p-3 rounded-lg ${i === 0 ? 'bg-gray-50' : ''}`}>
+            {project.healthUpdates.slice(1).map((u: ProjectHealthUpdate) => (
+              <div key={u.id} className="flex items-start gap-4 p-3 rounded-lg">
                 <div className="text-xs text-gray-400 w-20 shrink-0 mt-0.5">{fmt.shortDate(u.updateDate)}</div>
                 <div className="flex gap-1.5 flex-wrap">
                   <RagBadge status={u.overallStatus} size="sm" />
@@ -249,41 +357,15 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {/* Time entries summary */}
-      {project.timeEntries?.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={16} className="text-indigo-500" />
-            <h2 className="font-semibold text-gray-900">Recent Time Entries</h2>
-          </div>
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="table-th pl-0">Team Member</th>
-                <th className="table-th">Date</th>
-                <th className="table-th">Hours</th>
-                <th className="table-th">Billable</th>
-                <th className="table-th">Task</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {project.timeEntries.slice(0, 10).map((e: any) => (
-                <tr key={e.id}>
-                  <td className="table-td pl-0 font-medium">{e.teamMember.name}</td>
-                  <td className="table-td">{fmt.shortDate(e.date)}</td>
-                  <td className="table-td">{fmt.hours(e.hours)}</td>
-                  <td className="table-td">
-                    <span className={`text-xs font-medium ${e.isBillable ? 'text-green-600' : 'text-gray-400'}`}>
-                      {e.isBillable ? 'Yes' : 'No'}
-                    </span>
-                  </td>
-                  <td className="table-td text-gray-400">{e.taskCategory || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Team */}
+      <div className="card">
+        {id && <ProjectTeam projectId={id} />}
+      </div>
+
+      {/* Time Entries */}
+      <div className="card">
+        {id && <TimeEntryLog projectId={id} />}
+      </div>
 
       {/* Contractors */}
       {project.contractors?.length > 0 && (
@@ -308,6 +390,9 @@ export default function ProjectDetail() {
 
       <Modal isOpen={showHealthUpdate} onClose={() => setShowHealthUpdate(false)} title="Update Health Status">
         {id && <HealthUpdateForm projectId={id} onClose={() => setShowHealthUpdate(false)} />}
+      </Modal>
+      <Modal isOpen={showEdit} onClose={() => setShowEdit(false)} title="Edit Project">
+        <EditProjectModal project={project} onClose={() => setShowEdit(false)} />
       </Modal>
     </div>
   );

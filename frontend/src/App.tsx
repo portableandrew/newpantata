@@ -1,5 +1,7 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './lib/auth';
 import Layout from './components/layout/Layout';
+import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
@@ -8,8 +10,24 @@ import Team from './pages/Team';
 import Financials from './pages/Financials';
 import Reports from './pages/Reports';
 import HarvestSync from './pages/HarvestSync';
+import AdminUsers from './pages/AdminUsers';
+import LoadingSpinner from './components/ui/LoadingSpinner';
 
-export default function App() {
+function ProtectedApp() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <BrowserRouter>
       <Routes>
@@ -22,8 +40,18 @@ export default function App() {
           <Route path="/financials" element={<Financials />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/harvest" element={<HarvestSync />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <ProtectedApp />
+    </AuthProvider>
   );
 }

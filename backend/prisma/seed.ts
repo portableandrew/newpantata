@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -245,6 +246,20 @@ async function main() {
       targetProfit: 100000,
     },
   });
+
+  // Admin user
+  const adminHash = await bcrypt.hash('admin123', 10);
+  await prisma.user.upsert({
+    where: { email: 'admin@paradise.com.au' },
+    update: {},
+    create: {
+      email: 'admin@paradise.com.au',
+      passwordHash: adminHash,
+      name: 'Admin',
+      role: 'Admin',
+    },
+  });
+  console.log('Admin user: admin@paradise.com.au / admin123');
 
   console.log('Seed complete!');
 }
