@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
+import { ToastProvider } from './components/ui/Toast';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -51,7 +52,9 @@ function ProtectedApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <ProtectedApp />
+      <ToastProvider>
+        <ProtectedApp />
+      </ToastProvider>
     </AuthProvider>
   );
 }

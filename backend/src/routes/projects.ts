@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 
 const router = Router();
 
-// GET all projects
+// GET all projects — includes live margin computed from time entries
 router.get('/', async (req, res) => {
   const { status, type, clientId } = req.query;
 
@@ -24,11 +24,26 @@ router.get('/', async (req, res) => {
         take: 1,
       },
       _count: { select: { timeEntries: true } },
+      timeEntries: {
+        include: { teamMember: { select: { hourlyRateInternal: true } } },
+      },
     },
     orderBy: { updatedAt: 'desc' },
   });
 
-  res.json(projects);
+  const result = projects.map(p => {
+    const totalCost = p.timeEntries.reduce(
+      (s, e) => s + Number(e.hours) * Number(e.teamMember.hourlyRateInternal),
+      0
+    );
+    const totalHours = p.timeEntries.reduce((s, e) => s + Number(e.hours), 0);
+    const budget = Number(p.budget);
+    const liveMargin = budget > 0 ? ((budget - totalCost) / budget) * 100 : null;
+    const { timeEntries, ...rest } = p; // strip raw entries from response
+    return { ...rest, liveMargin, totalCostToDate: totalCost, totalHoursLogged: totalHours };
+  });
+
+  res.json(result);
 });
 
 // GET single project
@@ -157,3 +172,91 @@ router.get('/:id/time-summary', async (req, res) => {
 });
 
 export default router;
+
+// GET live metrics — margin, cost, burn derived from time entries × cost rates
+router.get('/:id/metrics', async (req, res) => {
+  const { id: projectId } = req.params;
+
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { budget: true, budgetHours: true, startDate: true, endDate: true },
+  });
+
+  // All time entries for this project, with team member cost rate
+  const entries = await prisma.timeEntry.findMany({
+    where: { projectId },
+    include: {
+      teamMember: { select: { hourlyRateInternal: true } },
+    },
+    orderBy: { date: 'asc' },
+  });
+
+  const totalHoursLogged = entries.reduce((s, e) => s + Number(e.hours), 0);
+  const totalCost = entries.reduce(
+    (s, e) => s + Number(e.hours) * Number(e.teamMember.hourlyRateInternal),
+    0
+  );
+
+  const budget = Number(project.budget);
+  const budgetHours = Number(project.budgetHours);
+  const margin = budget > 0 ? ((budget - totalCost) / budget) * 100 : null;
+  const hoursRemaining = budgetHours > 0 ? budgetHours - totalHoursLogged : null;
+  const burnRate = totalCost; // cost to date
+
+  // --- Burndown series: cumulative hours remaining over time ---
+  // Group entries by week (ISO week start Monday)
+  const weekMap = new Map<string, number>();
+  for (const e of entries) {
+    const d = new Date(e.date);
+    // Snap to Monday of that week
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1 - day);
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + diff);
+    const key = monday.toISOString().slice(0, 10);
+    weekMap.set(key, (weekMap.get(key) ?? 0) + Number(e.hours));
+  }
+
+  let cumulative = 0;
+  const burndown = Array.from(weekMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([week, hours]) => {
+      cumulative += hours;
+      return {
+        week,
+        hoursLogged: cumulative,
+        hoursRemaining: budgetHours > 0 ? Math.max(budgetHours - cumulative, 0) : null,
+      };
+    });
+
+  // --- Margin-over-time: rolling margin by month ---
+  const monthMap = new Map<string, { hours: number; cost: number }>();
+  for (const e of entries) {
+    const key = new Date(e.date).toISOString().slice(0, 7); // YYYY-MM
+    const cur = monthMap.get(key) ?? { hours: 0, cost: 0 };
+    cur.hours += Number(e.hours);
+    cur.cost += Number(e.hours) * Number(e.teamMember.hourlyRateInternal);
+    monthMap.set(key, cur);
+  }
+
+  let cumulativeCost = 0;
+  const marginOverTime = Array.from(monthMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, { cost }]) => {
+      cumulativeCost += cost;
+      const m = budget > 0 ? ((budget - cumulativeCost) / budget) * 100 : null;
+      return { month, cumulativeCost, margin: m };
+    });
+
+  res.json({
+    totalHoursLogged,
+    budgetHours,
+    hoursRemaining,
+    totalCost,
+    budget,
+    margin,
+    burnRate,
+    burndown,
+    marginOverTime,
+  });
+});

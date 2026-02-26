@@ -4,7 +4,9 @@ import { Plus, Trash2, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import api, { fmt } from '../../lib/api';
 import Modal from '../ui/Modal';
+import { useToast } from '../ui/Toast';
 import LoadingSpinner from '../ui/LoadingSpinner';
+
 import { useAuth } from '../../lib/auth';
 import type { TeamMember } from '../../types';
 
@@ -27,6 +29,7 @@ const taskCategories = ['Design', 'Development', 'Strategy', 'PM', 'QA', 'Resear
 function LogTimeModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const { success, error: toastError } = useToast();
 
   const { data: teamMembers } = useQuery<TeamMember[]>({
     queryKey: ['team'],
@@ -57,8 +60,12 @@ function LogTimeModal({ projectId, onClose }: { projectId: string; onClose: () =
       qc.invalidateQueries({ queryKey: ['time-entries', projectId] });
       qc.invalidateQueries({ queryKey: ['project-members', projectId] });
       qc.invalidateQueries({ queryKey: ['project', projectId] });
+      qc.invalidateQueries({ queryKey: ['project-metrics', projectId] });
+      qc.invalidateQueries({ queryKey: ['projects'] });
+      success('Time logged ✓');
       onClose();
     },
+    onError: () => toastError('Failed to log time'),
   });
 
   return (
@@ -154,7 +161,8 @@ function LogTimeModal({ projectId, onClose }: { projectId: string; onClose: () =
 
 export default function TimeEntryLog({ projectId }: { projectId: string }) {
   const qc = useQueryClient();
-  const { isProjectManager } = useAuth();
+
+  const { success, error: toastError } = useToast();
   const [showLog, setShowLog] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<TimeEntry | null>(null);
 
@@ -168,8 +176,11 @@ export default function TimeEntryLog({ projectId }: { projectId: string }) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['time-entries', projectId] });
       qc.invalidateQueries({ queryKey: ['project-members', projectId] });
+      qc.invalidateQueries({ queryKey: ['project-metrics', projectId] });
+      success('Time entry deleted');
       setConfirmDelete(null);
     },
+    onError: () => toastError('Failed to delete entry'),
   });
 
   const totalHours = entries?.reduce((s, e) => s + Number(e.hours), 0) ?? 0;

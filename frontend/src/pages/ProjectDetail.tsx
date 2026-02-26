@@ -8,8 +8,10 @@ import RagBadge from '../components/ui/RagBadge';
 import Badge from '../components/ui/Badge';
 import Modal from '../components/ui/Modal';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ProjectCharts from '../components/project/ProjectCharts';
 import ProjectTeam from '../components/project/ProjectTeam';
 import TimeEntryLog from '../components/project/TimeEntryLog';
+import { useToast } from '../components/ui/Toast';
 import type { Project, RagStatus, ProjectHealthUpdate, TeamMember } from '../types';
 
 type RagChoice = RagStatus;
@@ -17,6 +19,7 @@ const ragOptions: RagChoice[] = ['Green', 'Orange', 'Red'];
 
 function HealthUpdateForm({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const { success, error: toastError } = useToast();
   const [form, setForm] = useState({
     updateDate: format(new Date(), 'yyyy-MM-dd'),
     overallStatus: 'Green' as RagChoice,
@@ -31,8 +34,10 @@ function HealthUpdateForm({ projectId, onClose }: { projectId: string; onClose: 
     mutationFn: () => api.post(`/projects/${projectId}/health`, form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project', projectId] });
+      success('Health status updated');
       onClose();
     },
+    onError: () => toastError('Failed to save health update'),
   });
 
   const RagSelector = ({ field }: { field: keyof typeof form }) => (
@@ -89,6 +94,7 @@ function HealthUpdateForm({ projectId, onClose }: { projectId: string; onClose: 
 
 function EditProjectModal({ project, onClose }: { project: any; onClose: () => void }) {
   const qc = useQueryClient();
+  const { success, error: toastError } = useToast();
   const { data: clients } = useQuery<{ id: string; name: string }[]>({
     queryKey: ['clients'],
     queryFn: () => api.get('/clients').then(r => r.data),
@@ -123,8 +129,10 @@ function EditProjectModal({ project, onClose }: { project: any; onClose: () => v
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project', project.id] });
       qc.invalidateQueries({ queryKey: ['projects'] });
+      success('Project saved ✓');
       onClose();
     },
+    onError: () => toastError('Failed to save project'),
   });
 
   return (
@@ -356,6 +364,12 @@ export default function ProjectDetail() {
           </div>
         </div>
       )}
+
+      {/* Charts — burndown & margin */}
+      <div className="card">
+        <h2 className="font-semibold text-gray-900 mb-4">Burndown &amp; Margin</h2>
+        {id && <ProjectCharts projectId={id} />}
+      </div>
 
       {/* Team */}
       <div className="card">

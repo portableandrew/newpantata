@@ -214,7 +214,14 @@ export default function Projects() {
   );
 }
 
-function ProjectSection({ title, projects }: { title: string; projects: Project[] }) {
+function marginBadgeClass(m: number | null | undefined) {
+  if (m == null) return 'text-gray-400';
+  if (m < 0) return 'text-red-600 font-semibold';
+  if (m < 15) return 'text-amber-600 font-semibold';
+  return 'text-green-600 font-semibold';
+}
+
+function ProjectSection({ title, projects }: { title: string; projects: (Project & { liveMargin?: number | null; totalHoursLogged?: number })[]; }) {
   return (
     <div>
       <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -228,13 +235,17 @@ function ProjectSection({ title, projects }: { title: string; projects: Project[
               <th className="table-th">Type</th>
               <th className="table-th hidden md:table-cell">Health</th>
               <th className="table-th hidden lg:table-cell text-right">Budget</th>
-              <th className="table-th hidden lg:table-cell">Last Update</th>
+              <th className="table-th hidden lg:table-cell text-right">Hours</th>
+              <th className="table-th hidden lg:table-cell text-right">Margin</th>
+              <th className="table-th hidden xl:table-cell">Last Update</th>
               <th className="w-8" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {projects.map(p => {
               const latest = p.healthUpdates?.[0];
+              const margin = (p as any).liveMargin as number | null | undefined;
+              const hoursLogged = (p as any).totalHoursLogged as number | undefined;
               return (
                 <tr key={p.id} className="hover:bg-gray-50 transition-colors group">
                   <td className="table-td">
@@ -255,10 +266,18 @@ function ProjectSection({ title, projects }: { title: string; projects: Project[
                       <span className="text-xs text-gray-300">—</span>
                     )}
                   </td>
-                  <td className="table-td hidden lg:table-cell text-right font-medium">
+                  <td className="table-td hidden lg:table-cell text-right text-sm font-medium text-gray-700">
                     {fmt.currency(Number(p.budget))}
                   </td>
-                  <td className="table-td hidden lg:table-cell text-gray-400 text-xs">
+                  <td className="table-td hidden lg:table-cell text-right text-sm text-gray-500">
+                    {hoursLogged != null && hoursLogged > 0 ? fmt.hours(hoursLogged) : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="table-td hidden lg:table-cell text-right text-sm">
+                    <span className={marginBadgeClass(margin)}>
+                      {margin != null ? fmt.percent(margin) : <span className="text-gray-300 font-normal">—</span>}
+                    </span>
+                  </td>
+                  <td className="table-td hidden xl:table-cell text-gray-400 text-xs">
                     {latest ? fmt.date(latest.updateDate) : '—'}
                   </td>
                   <td className="table-td">

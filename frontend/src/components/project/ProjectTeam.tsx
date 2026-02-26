@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Edit2, AlertTriangle, Check, X } from 'lucide-react';
 import api, { fmt } from '../../lib/api';
 import Modal from '../ui/Modal';
+import { useToast } from '../ui/Toast';
 import LoadingSpinner from '../ui/LoadingSpinner';
 import type { TeamMember } from '../../types';
 
@@ -37,6 +38,7 @@ function utilizationBarColor(pct: number): string {
 
 function AddMemberModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const qc = useQueryClient();
+  const { success, error: toastError } = useToast();
   const { data: members } = useQuery<TeamMember[]>({
     queryKey: ['team'],
     queryFn: () => api.get('/team?active=true').then(r => r.data),
@@ -60,8 +62,10 @@ function AddMemberModal({ projectId, onClose }: { projectId: string; onClose: ()
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-members', projectId] });
+      success('Team member added ✓');
       onClose();
     },
+    onError: () => toastError('Failed to add team member'),
   });
 
   return (
@@ -122,6 +126,7 @@ function InlineHoursEdit({
   onDone: () => void;
 }) {
   const qc = useQueryClient();
+  const { success } = useToast();
   const [value, setValue] = useState(String(member.allocatedHours));
 
   const mutation = useMutation({
@@ -131,6 +136,7 @@ function InlineHoursEdit({
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-members', projectId] });
+      success('Hours updated ✓');
       onDone();
     },
   });
@@ -161,6 +167,7 @@ function InlineHoursEdit({
 
 export default function ProjectTeam({ projectId }: { projectId: string }) {
   const qc = useQueryClient();
+  const { success, error: toastError } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<ProjectMember | null>(null);
@@ -175,8 +182,10 @@ export default function ProjectTeam({ projectId }: { projectId: string }) {
       api.delete(`/projects/${projectId}/members/${memberId}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['project-members', projectId] });
+      success('Team member removed');
       setConfirmRemove(null);
     },
+    onError: () => toastError('Failed to remove team member'),
   });
 
   const totalAllocated = members?.reduce((s, m) => s + m.allocatedHours, 0) ?? 0;
