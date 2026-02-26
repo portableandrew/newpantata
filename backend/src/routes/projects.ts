@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
+import projectMembersRouter from './projectMembers';
 
 const router = Router();
 
@@ -171,8 +172,6 @@ router.get('/:id/time-summary', async (req, res) => {
   res.json(result);
 });
 
-export default router;
-
 // GET live metrics — margin, cost, burn derived from time entries × cost rates
 router.get('/:id/metrics', async (req, res) => {
   const { id: projectId } = req.params;
@@ -260,3 +259,8 @@ router.get('/:id/metrics', async (req, res) => {
     marginOverTime,
   });
 });
+
+// Mount project members subrouter
+router.use('/:id/members', projectMembersRouter);
+
+export default router;

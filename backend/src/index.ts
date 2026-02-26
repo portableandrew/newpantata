@@ -9,7 +9,6 @@ import { errorHandler } from './middleware/errorHandler';
 import { requireAuth } from './middleware/auth';
 import authRouter from './routes/auth';
 import projectsRouter from './routes/projects';
-import projectMembersRouter from './routes/projectMembers';
 import clientsRouter from './routes/clients';
 import teamRouter from './routes/team';
 import financialsRouter from './routes/financials';
@@ -37,7 +36,6 @@ app.use('/api/auth', authRouter);
 // All other API routes require auth
 app.use('/api/dashboard', requireAuth, dashboardRouter);
 app.use('/api/projects', requireAuth, projectsRouter);
-app.use('/api/projects', requireAuth, projectMembersRouter);
 app.use('/api/clients', requireAuth, clientsRouter);
 app.use('/api/team', requireAuth, teamRouter);
 app.use('/api/financials', requireAuth, financialsRouter);
