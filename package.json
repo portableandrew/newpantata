@@ -1,7 +1,7 @@
 {
-  "name": "paradise-pm",
+  "name": "hoops-training",
   "version": "1.0.0",
-  "description": "Paradise Project Management System",
+  "description": "Hoops Basketball Training App",
   "private": true,
   "workspaces": ["backend", "frontend"],
   "scripts": {

@@ -6,15 +6,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { errorHandler } from './middleware/errorHandler';
-import projectsRouter from './routes/projects';
-import clientsRouter from './routes/clients';
-import teamRouter from './routes/team';
-import financialsRouter from './routes/financials';
-import reportsRouter from './routes/reports';
-import pipelineRouter from './routes/pipeline';
-import harvestRouter from './routes/harvest';
-import utilizationRouter from './routes/utilization';
-import dashboardRouter from './routes/dashboard';
+import dashboardRouter from './routes/basketball-dashboard';
+import playersRouter from './routes/players';
+import drillsRouter from './routes/drills';
+import sessionsRouter from './routes/sessions';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,19 +24,14 @@ app.get('/health', (_req, res) => {
 
 // API routes
 app.use('/api/dashboard', dashboardRouter);
-app.use('/api/projects', projectsRouter);
-app.use('/api/clients', clientsRouter);
-app.use('/api/team', teamRouter);
-app.use('/api/financials', financialsRouter);
-app.use('/api/reports', reportsRouter);
-app.use('/api/pipeline', pipelineRouter);
-app.use('/api/harvest', harvestRouter);
-app.use('/api/utilization', utilizationRouter);
+app.use('/api/players', playersRouter);
+app.use('/api/drills', drillsRouter);
+app.use('/api/sessions', sessionsRouter);
 
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`Paradise PM API running on port ${PORT}`);
+  console.log(`Hoops Training API running on port ${PORT}`);
 });
 
 export default app;

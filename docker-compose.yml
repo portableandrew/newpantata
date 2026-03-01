@@ -4,15 +4,15 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: paradise
-      POSTGRES_PASSWORD: paradise
-      POSTGRES_DB: paradise_pm
+      POSTGRES_USER: hoops
+      POSTGRES_PASSWORD: hoops
+      POSTGRES_DB: hoops_training
     ports:
       - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U paradise']
+      test: ['CMD-SHELL', 'pg_isready -U hoops']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,8 +22,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql://paradise:paradise@postgres:5432/paradise_pm
-      JWT_SECRET: paradise-pm-secret-change-in-production
+      DATABASE_URL: postgresql://hoops:hoops@postgres:5432/hoops_training
+      JWT_SECRET: hoops-training-secret
       NODE_ENV: production
       PORT: 3001
     ports:

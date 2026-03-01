@@ -1,215 +1,165 @@
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Briefcase, TrendingUp, Users, RefreshCw } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import api, { fmt } from '../lib/api';
-import StatCard from '../components/ui/StatCard';
-import RagBadge from '../components/ui/RagBadge';
-import Badge from '../components/ui/Badge';
-import LoadingSpinner from '../components/ui/LoadingSpinner';
-import type { DashboardData, ProjectType } from '../types';
+import { Users, Dumbbell, CalendarDays, TrendingUp, MapPin, Clock } from 'lucide-react';
+import { format } from 'date-fns';
+import api from '../lib/api';
+import { DashboardData, TrainingSession } from '../types/basketball';
 
-const typeLabel: Record<ProjectType, string> = {
-  FixedPrice: 'Fixed Price',
-  TM: 'T&M',
-  SLA: 'SLA',
-  RIInternal: 'R&I',
+const positionColors: Record<string, string> = {
+  PG: 'bg-blue-100 text-blue-700',
+  SG: 'bg-purple-100 text-purple-700',
+  SF: 'bg-green-100 text-green-700',
+  PF: 'bg-orange-100 text-orange-700',
+  C: 'bg-red-100 text-red-700',
 };
 
-const typeBadgeVariant: Record<ProjectType, 'blue' | 'purple' | 'green' | 'amber'> = {
-  FixedPrice: 'blue',
-  TM: 'purple',
-  SLA: 'green',
-  RIInternal: 'amber',
+const sessionTypeColors: Record<string, string> = {
+  Practice: 'bg-blue-50 text-blue-700 border-blue-200',
+  Game: 'bg-red-50 text-red-700 border-red-200',
+  'Film Session': 'bg-gray-50 text-gray-700 border-gray-200',
+  Conditioning: 'bg-orange-50 text-orange-700 border-orange-200',
+  Scrimmage: 'bg-green-50 text-green-700 border-green-200',
 };
+
+function StatCard({ label, value, icon: Icon, color }: {
+  label: string; value: number | string; icon: any; color: string;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 flex items-center gap-4 shadow-sm">
+      <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${color}`}>
+        <Icon size={20} />
+      </div>
+      <div>
+        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-sm text-gray-500">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function SessionRow({ session }: { session: TrainingSession }) {
+  const typeStyle = sessionTypeColors[session.sessionType] || 'bg-gray-50 text-gray-700 border-gray-200';
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+      <div className="text-center min-w-[44px]">
+        <p className="text-xs font-semibold text-gray-400 uppercase">{format(new Date(session.date), 'MMM')}</p>
+        <p className="text-xl font-bold text-gray-900 leading-none">{format(new Date(session.date), 'd')}</p>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <p className="font-medium text-gray-900 text-sm truncate">{session.title}</p>
+          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium shrink-0 ${typeStyle}`}>
+            {session.sessionType}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-gray-400">
+          <span className="flex items-center gap-1"><Clock size={11} />{format(new Date(session.date), 'h:mm a')}</span>
+          {session.location && <span className="flex items-center gap-1"><MapPin size={11} />{session.location}</span>}
+          {session._count && <span className="flex items-center gap-1"><Users size={11} />{session._count.attendances} players</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { data, isLoading } = useQuery<DashboardData>({
     queryKey: ['dashboard'],
     queryFn: () => api.get('/dashboard').then(r => r.data),
-    refetchInterval: 60000,
   });
 
-  const now = new Date();
-  const monthLabel = now.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 h-20 animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-  if (isLoading) return <LoadingSpinner className="py-24" />;
-
-  const alertProjects = data?.activeProjects.filter(
-    p => p.healthStatus === 'Red' || p.healthStatus === 'Orange'
-  ) || [];
-
-  const greenProjects = data?.activeProjects.filter(p => p.healthStatus === 'Green') || [];
+  if (!data) return null;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{monthLabel}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {data?.lastHarvestSync && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-400">
-              <RefreshCw size={12} />
-              <span>Synced {fmt.date(data.lastHarvestSync)}</span>
-            </div>
-          )}
-          <Link to="/reports" className="btn-primary">
-            Generate Report
-          </Link>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">Basketball Training Overview</p>
       </div>
 
-      {/* Alerts */}
-      {alertProjects.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle size={16} className="text-amber-600" />
-            <span className="text-sm font-semibold text-amber-800">
-              {alertProjects.length} project{alertProjects.length > 1 ? 's' : ''} need{alertProjects.length === 1 ? 's' : ''} attention
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {alertProjects.map(p => (
-              <Link
-                key={p.id}
-                to={`/projects/${p.id}`}
-                className="inline-flex items-center gap-2 bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-sm hover:bg-amber-50 transition-colors"
-              >
-                <RagBadge status={p.healthStatus} size="sm" showLabel={false} />
-                <span className="font-medium text-gray-900">{p.name}</span>
-                <span className="text-gray-400">— {p.client}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Active Projects"
-          value={data?.activeProjectsCount ?? '—'}
-          sub={`${alertProjects.length} needing attention`}
-          trend={alertProjects.length > 0 ? 'down' : 'neutral'}
-        />
-        <StatCard
-          label="Pipeline Value"
-          value={fmt.currency(data?.pipeline.total ?? 0)}
-          sub={`${fmt.currency(data?.pipeline.weighted ?? 0)} weighted`}
-          trendValue={`${data?.pipeline.count || 0} deals`}
-          trend="neutral"
-        />
-        {data?.financials ? (
-          <>
-            <StatCard
-              label="Gross Profit"
-              value={fmt.currency(data.financials.grossProfit)}
-              sub="This month"
-              trend={data.financials.grossProfit >= 0 ? 'up' : 'down'}
-              trendValue={fmt.percent(data.financials.grossMargin)}
-            />
-            <StatCard
-              label="Net Profit"
-              value={fmt.currency(data.financials.netProfit)}
-              sub="This month"
-              trend={data.financials.netProfit >= 0 ? 'up' : 'down'}
-              trendValue={fmt.percent(data.financials.netMargin)}
-            />
-          </>
-        ) : (
-          <>
-            <StatCard label="Gross Profit" value="—" sub="No data entered" />
-            <StatCard label="Net Profit" value="—" sub="No data entered" />
-          </>
-        )}
+        <StatCard label="Active Players" value={data.summary.activePlayers} icon={Users} color="bg-blue-50 text-blue-600" />
+        <StatCard label="Drills Library" value={data.summary.totalDrills} icon={Dumbbell} color="bg-orange-50 text-orange-600" />
+        <StatCard label="Sessions This Month" value={data.summary.sessionsThisMonth} icon={CalendarDays} color="bg-green-50 text-green-600" />
+        <StatCard label="Upcoming Sessions" value={data.summary.upcomingCount} icon={TrendingUp} color="bg-purple-50 text-purple-600" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Active Projects */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Briefcase size={18} className="text-indigo-500" />
-              <h2 className="font-semibold text-gray-900">Active Projects</h2>
-            </div>
-            <Link to="/projects" className="text-xs text-indigo-600 hover:underline">View all</Link>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-50">
+            <h2 className="font-semibold text-gray-900">Upcoming Sessions</h2>
           </div>
-          <div className="space-y-2">
-            {data?.activeProjects.slice(0, 8).map(p => (
-              <Link
-                key={p.id}
-                to={`/projects/${p.id}`}
-                className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-gray-50 transition-colors group"
-              >
-                <RagBadge status={p.healthStatus} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                  <p className="text-xs text-gray-400 truncate">{p.client}</p>
-                </div>
-                <Badge variant={typeBadgeVariant[p.projectType]}>{typeLabel[p.projectType]}</Badge>
-              </Link>
-            ))}
-            {(!data?.activeProjects || data.activeProjects.length === 0) && (
-              <p className="text-sm text-gray-400 text-center py-4">No active projects</p>
+          <div className="p-3">
+            {data.upcomingSessions.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No upcoming sessions scheduled</p>
+            ) : (
+              data.upcomingSessions.map(s => <SessionRow key={s.id} session={s} />)
             )}
           </div>
         </div>
 
-        {/* Pipeline + Team */}
-        <div className="space-y-4">
-          {/* Pipeline summary */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <TrendingUp size={18} className="text-indigo-500" />
-                <h2 className="font-semibold text-gray-900">Pipeline</h2>
-              </div>
-              <Link to="/pipeline" className="text-xs text-indigo-600 hover:underline">Manage</Link>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{fmt.currency(data?.pipeline.total || 0)}</p>
-                <p className="text-xs text-gray-400 mt-0.5">Total value</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-indigo-600">{fmt.currency(data?.pipeline.weighted || 0)}</p>
-                <p className="text-xs text-gray-400 mt-0.5">Probability-weighted</p>
-              </div>
-            </div>
-            <div className="mt-3 text-center">
-              <span className="text-xs text-gray-400">{data?.pipeline.count || 0} active deals</span>
-            </div>
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-50">
+            <h2 className="font-semibold text-gray-900">Top Performers (Last 30 Days)</h2>
           </div>
-
-          {/* Team */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users size={18} className="text-indigo-500" />
-                <h2 className="font-semibold text-gray-900">Team</h2>
-              </div>
-              <Link to="/team" className="text-xs text-indigo-600 hover:underline">Utilization</Link>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <p className="text-3xl font-bold text-gray-900">{data?.team.activeCount || 0}</p>
-                <p className="text-xs text-gray-400 mt-0.5">Active members</p>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                  <span>Target utilization</span>
-                  <span className="font-medium">68.1%</span>
+          <div className="divide-y divide-gray-50">
+            {data.topPerformers.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No stats recorded yet</p>
+            ) : (
+              data.topPerformers.map((p, i) => (
+                <div key={p.player.id} className="px-5 py-3 flex items-center gap-3">
+                  <span className="w-6 h-6 flex items-center justify-center text-xs font-bold text-gray-400">{i + 1}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900 text-sm">{p.player.name}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${positionColors[p.player.position] || 'bg-gray-100 text-gray-600'}`}>
+                        {p.player.position}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400">{p.games} game{p.games !== 1 ? 's' : ''}</p>
+                  </div>
+                  <div className="flex gap-4 text-sm">
+                    <div className="text-center">
+                      <p className="font-bold text-gray-900">{p.avgPoints}</p>
+                      <p className="text-xs text-gray-400">PTS</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-bold text-gray-900">{p.avgRebounds}</p>
+                      <p className="text-xs text-gray-400">REB</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-bold text-gray-900">{p.avgAssists}</p>
+                      <p className="text-xs text-gray-400">AST</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full">
-                  <div className="h-2 bg-indigo-500 rounded-full" style={{ width: '68%' }} />
-                </div>
-              </div>
-            </div>
+              ))
+            )}
           </div>
         </div>
       </div>
+
+      {data.recentSessions.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
+          <div className="px-5 py-4 border-b border-gray-50">
+            <h2 className="font-semibold text-gray-900">Recent Sessions</h2>
+          </div>
+          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
+            {data.recentSessions.map(s => <SessionRow key={s.id} session={s} />)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,13 +1,11 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects';
-import ProjectDetail from './pages/ProjectDetail';
-import Pipeline from './pages/Pipeline';
-import Team from './pages/Team';
-import Financials from './pages/Financials';
-import Reports from './pages/Reports';
-import HarvestSync from './pages/HarvestSync';
+import Players from './pages/Players';
+import PlayerDetail from './pages/PlayerDetail';
+import Drills from './pages/Drills';
+import Sessions from './pages/Sessions';
+import SessionDetail from './pages/SessionDetail';
 
 export default function App() {
   return (
@@ -15,13 +13,11 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/pipeline" element={<Pipeline />} />
-          <Route path="/team" element={<Team />} />
-          <Route path="/financials" element={<Financials />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/harvest" element={<HarvestSync />} />
+          <Route path="/players" element={<Players />} />
+          <Route path="/players/:id" element={<PlayerDetail />} />
+          <Route path="/drills" element={<Drills />} />
+          <Route path="/sessions" element={<Sessions />} />
+          <Route path="/sessions/:id" element={<SessionDetail />} />
         </Route>
       </Routes>
     </BrowserRouter>

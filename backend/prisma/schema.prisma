@@ -7,319 +7,155 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Organization {
-  id                        String   @id @default(uuid())
-  name                      String
-  targetProfitability       Decimal  @default(7.5) @map("target_profitability")
-  targetBillableUtilization Decimal  @default(68.1) @map("target_billable_utilization")
-  createdAt                 DateTime @default(now()) @map("created_at")
-  updatedAt                 DateTime @updatedAt @map("updated_at")
-
-  @@map("organizations")
+enum Position {
+  PG
+  SG
+  SF
+  PF
+  C
 }
 
-enum MemberRole {
-  Principal
-  Lead
-  Designer
-  Developer
-  BA
-  Production
+enum DrillCategory {
+  Shooting
+  Defense
+  Conditioning
+  BallHandling  @map("Ball Handling")
+  Rebounding
+  Team
+  Footwork
 }
 
-enum EmploymentType {
-  FullTime  @map("Full-time")
-  PartTime  @map("Part-time")
-  Contractor
+enum Difficulty {
+  Beginner
+  Intermediate
+  Advanced
 }
 
-model TeamMember {
-  id                  String         @id @default(uuid())
-  name                String
-  email               String         @unique
-  role                MemberRole
-  employmentType      EmploymentType @map("employment_type")
-  weeklyHours         Decimal        @map("weekly_hours")
-  hourlyRateInternal  Decimal        @default(0) @map("hourly_rate_internal")
-  hourlyRateBillable  Decimal        @default(0) @map("hourly_rate_billable")
-  managerId           String?        @map("manager_id")
-  harvestUserId       String?        @map("harvest_user_id")
-  isActive            Boolean        @default(true) @map("is_active")
-  startDate           DateTime       @map("start_date")
-  endDate             DateTime?      @map("end_date")
-  createdAt           DateTime       @default(now()) @map("created_at")
-  updatedAt           DateTime       @updatedAt @map("updated_at")
-
-  manager          TeamMember?          @relation("ManagerReports", fields: [managerId], references: [id])
-  reports          TeamMember[]         @relation("ManagerReports")
-  timeEntries      TimeEntry[]
-  healthUpdates    ProjectHealthUpdate[]
-  assignments      ProjectAssignment[]
-
-  @@map("team_members")
+enum SessionType {
+  Practice
+  Game
+  FilmSession  @map("Film Session")
+  Conditioning
+  Scrimmage
 }
 
-model Client {
-  id                  String    @id @default(uuid())
-  name                String
-  industry            String?
-  primaryContactName  String?   @map("primary_contact_name")
-  primaryContactEmail String?   @map("primary_contact_email")
-  notes               String?
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-
-  projects    Project[]
-  feedback    ClientFeedback[]
-
-  @@map("clients")
+enum StatType {
+  Game
+  Practice
+  Scrimmage
 }
 
-enum ProjectType {
-  FixedPrice  @map("Fixed Price")
-  TM          @map("Time & Materials")
-  SLA
-  RIInternal  @map("R&I Internal")
+model Player {
+  id           String   @id @default(uuid())
+  name         String
+  position     Position
+  jerseyNumber Int?     @map("jersey_number")
+  age          Int?
+  heightCm     Int?     @map("height_cm")
+  weightKg     Int?     @map("weight_kg")
+  teamGroup    String?  @map("team_group")
+  notes        String?
+  isActive     Boolean  @default(true) @map("is_active")
+  joinedAt     DateTime @default(now()) @map("joined_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  stats       PlayerStat[]
+  attendances SessionAttendance[]
+
+  @@map("players")
 }
 
-enum ProjectStatus {
-  Pipeline
-  Active
-  OnHold    @map("On Hold")
-  Completed
-  Lost
+model Drill {
+  id           String        @id @default(uuid())
+  name         String
+  category     DrillCategory
+  description  String?
+  difficulty   Difficulty    @default(Intermediate)
+  durationMins Int?          @map("duration_mins")
+  instructions String?
+  tags         String[]      @default([])
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  sessionDrills SessionDrill[]
+
+  @@map("drills")
 }
 
-enum DealStage {
-  Lead
-  Qualified
-  Proposal
-  Negotiation
-  Won
-  Lost
-  Disqualified
+model TrainingSession {
+  id           String      @id @default(uuid())
+  title        String
+  sessionType  SessionType @map("session_type")
+  date         DateTime
+  durationMins Int?        @map("duration_mins")
+  location     String?
+  notes        String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  drills      SessionDrill[]
+  attendances SessionAttendance[]
+
+  @@map("training_sessions")
 }
 
-enum DealLikelihood {
-  Low
-  Medium
-  High
+model SessionDrill {
+  id           String          @id @default(uuid())
+  sessionId    String          @map("session_id")
+  drillId      String          @map("drill_id")
+  orderIndex   Int             @map("order_index")
+  sets         Int?
+  reps         Int?
+  durationMins Int?            @map("duration_mins")
+  notes        String?
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  drill   Drill           @relation(fields: [drillId], references: [id])
+
+  @@unique([sessionId, orderIndex])
+  @@map("session_drills")
 }
 
-model Project {
-  id                String         @id @default(uuid())
-  clientId          String         @map("client_id")
-  name              String
-  projectType       ProjectType    @map("project_type")
-  status            ProjectStatus  @default(Pipeline)
-  startDate         DateTime?      @map("start_date")
-  endDate           DateTime?      @map("end_date")
-  budget            Decimal        @default(0)
-  harvestProjectId  String?        @map("harvest_project_id")
-  dealStage         DealStage?     @map("deal_stage")
-  dealLikelihood    DealLikelihood? @map("deal_likelihood")
-  dealAmount        Decimal?       @map("deal_amount")
-  expectedCloseDate DateTime?      @map("expected_close_date")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
+model SessionAttendance {
+  id        String          @id @default(uuid())
+  sessionId String          @map("session_id")
+  playerId  String          @map("player_id")
+  attended  Boolean         @default(true)
+  notes     String?
+  createdAt DateTime        @default(now()) @map("created_at")
 
-  client        Client               @relation(fields: [clientId], references: [id])
-  healthUpdates ProjectHealthUpdate[]
-  financials    ProjectFinancial[]
-  timeEntries   TimeEntry[]
-  contractors   Contractor[]
-  feedback      ClientFeedback[]
-  assignments   ProjectAssignment[]
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  player  Player          @relation(fields: [playerId], references: [id])
 
-  @@map("projects")
+  @@unique([sessionId, playerId])
+  @@map("session_attendances")
 }
 
-model ProjectAssignment {
-  id             String    @id @default(uuid())
-  projectId      String    @map("project_id")
-  teamMemberId   String    @map("team_member_id")
-  allocationPct  Decimal   @default(100) @map("allocation_pct")
-  startDate      DateTime? @map("start_date")
-  endDate        DateTime? @map("end_date")
-  estimatedHours Decimal?  @map("estimated_hours")
-  notes          String?
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-
-  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  teamMember TeamMember @relation(fields: [teamMemberId], references: [id])
-
-  @@unique([projectId, teamMemberId])
-  @@map("project_assignments")
-}
-
-enum RagStatus {
-  Green
-  Orange
-  Red
-}
-
-model ProjectHealthUpdate {
-  id             String    @id @default(uuid())
-  projectId      String    @map("project_id")
-  updateDate     DateTime  @map("update_date")
-  overallStatus  RagStatus @map("overall_status")
-  scheduleStatus RagStatus @map("schedule_status")
-  scopeStatus    RagStatus @map("scope_status")
-  budgetStatus   RagStatus @map("budget_status")
-  clientStatus   RagStatus @map("client_status")
-  notes          String?
-  updatedById    String?   @map("updated_by")
-  createdAt      DateTime  @default(now()) @map("created_at")
-
-  project     Project     @relation(fields: [projectId], references: [id])
-  updatedBy   TeamMember? @relation(fields: [updatedById], references: [id])
-
-  @@map("project_health_updates")
-}
-
-model ProjectFinancial {
+model PlayerStat {
   id                  String   @id @default(uuid())
-  projectId           String   @map("project_id")
-  month               DateTime
-  actualFees          Decimal  @default(0) @map("actual_fees")
-  estimateToComplete  Decimal  @default(0) @map("estimate_to_complete")
-  estimateAtComplete  Decimal  @default(0) @map("estimate_at_complete")
-  variance            Decimal  @default(0)
-  profitMargin        Decimal  @default(0) @map("profit_margin")
+  playerId            String   @map("player_id")
+  statDate            DateTime @map("stat_date")
+  statType            StatType @map("stat_type")
+  points              Int      @default(0)
+  rebounds            Int      @default(0)
+  assists             Int      @default(0)
+  steals              Int      @default(0)
+  blocks              Int      @default(0)
+  turnovers           Int      @default(0)
+  fieldGoalsMade      Int      @default(0) @map("field_goals_made")
+  fieldGoalAttempts   Int      @default(0) @map("field_goal_attempts")
+  threesMade          Int      @default(0) @map("threes_made")
+  threesAttempts      Int      @default(0) @map("threes_attempts")
+  freeThrowsMade      Int      @default(0) @map("free_throws_made")
+  freeThrowAttempts   Int      @default(0) @map("free_throw_attempts")
+  minutesPlayed       Int      @default(0) @map("minutes_played")
+  notes               String?
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
-  project Project @relation(fields: [projectId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
 
-  @@unique([projectId, month])
-  @@map("project_financials")
-}
-
-model TimeEntry {
-  id             String    @id @default(uuid())
-  teamMemberId   String    @map("team_member_id")
-  projectId      String    @map("project_id")
-  date           DateTime
-  hours          Decimal
-  isBillable     Boolean   @default(true) @map("is_billable")
-  taskCategory   String?   @map("task_category")
-  notes          String?
-  harvestEntryId String?   @unique @map("harvest_entry_id")
-  syncedAt       DateTime? @map("synced_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-
-  teamMember TeamMember @relation(fields: [teamMemberId], references: [id])
-  project    Project    @relation(fields: [projectId], references: [id])
-
-  @@map("time_entries")
-}
-
-enum ContractorStatus {
-  Active
-  Completed
-}
-
-model Contractor {
-  id         String           @id @default(uuid())
-  name       String
-  projectId  String           @map("project_id")
-  startDate  DateTime         @map("start_date")
-  endDate    DateTime?        @map("end_date")
-  totalCost  Decimal          @default(0) @map("total_cost")
-  status     ContractorStatus @default(Active)
-  createdAt  DateTime         @default(now()) @map("created_at")
-  updatedAt  DateTime         @updatedAt @map("updated_at")
-
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@map("contractors")
-}
-
-model ClientFeedback {
-  id                String   @id @default(uuid())
-  projectId         String   @map("project_id")
-  clientId          String   @map("client_id")
-  sentDate          DateTime @map("sent_date")
-  clientScore       Decimal? @map("client_score")
-  participationRate Decimal? @map("participation_rate")
-  happiness         Decimal?
-  confidence        Decimal?
-  collaboration     Decimal?
-  feedbackText      String?  @map("feedback_text")
-  respondentName    String?  @map("respondent_name")
-  createdAt         DateTime @default(now()) @map("created_at")
-
-  project Project @relation(fields: [projectId], references: [id])
-  client  Client  @relation(fields: [clientId], references: [id])
-
-  @@map("client_feedback")
-}
-
-model MonthlySnapshot {
-  id               String   @id @default(uuid())
-  month            DateTime @unique
-  totalRevenue     Decimal  @map("total_revenue")
-  totalCosts       Decimal  @map("total_costs")
-  grossProfit      Decimal  @map("gross_profit")
-  netProfit        Decimal  @map("net_profit")
-  netProfitMargin  Decimal  @map("net_profit_margin")
-  rAndIInvestment  Decimal  @default(0) @map("r_and_i_investment")
-  teamCount        Int      @map("team_count")
-  snapshotData     Json     @map("snapshot_data")
-  createdAt        DateTime @default(now()) @map("created_at")
-
-  @@map("monthly_snapshots")
-}
-
-model QuarterlyTarget {
-  id             String   @id @default(uuid())
-  quarter        String
-  startDate      DateTime @map("start_date")
-  endDate        DateTime @map("end_date")
-  targetRevenue  Decimal  @map("target_revenue")
-  targetCost     Decimal  @map("target_cost")
-  targetProfit   Decimal  @map("target_profit")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  @@map("quarterly_targets")
-}
-
-model MonthlyFinancial {
-  id             String   @id @default(uuid())
-  month          DateTime @unique
-  invoiced       Decimal  @default(0)
-  prepayments    Decimal  @default(0)
-  internalRevenue Decimal @default(0) @map("internal_revenue")
-  totalRevenue   Decimal  @default(0) @map("total_revenue")
-  wagesCost      Decimal  @default(0) @map("wages_cost")
-  contractorsCost Decimal @default(0) @map("contractors_cost")
-  travelCost     Decimal  @default(0) @map("travel_cost")
-  otherDirectCost Decimal @default(0) @map("other_direct_cost")
-  directCosts    Decimal  @default(0) @map("direct_costs")
-  grossProfit    Decimal  @default(0) @map("gross_profit")
-  grossMargin    Decimal  @default(0) @map("gross_margin")
-  indirectCosts  Decimal  @default(0) @map("indirect_costs")
-  netProfit      Decimal  @default(0) @map("net_profit")
-  netMargin      Decimal  @default(0) @map("net_margin")
-  rAndIHours     Decimal  @default(0) @map("r_and_i_hours")
-  notes          String?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  @@map("monthly_financials")
-}
-
-model HarvestSync {
-  id          String    @id @default(uuid())
-  syncType    String    @map("sync_type")
-  startedAt   DateTime  @map("started_at")
-  completedAt DateTime? @map("completed_at")
-  status      String    @default("running")
-  entriesSync Int       @default(0) @map("entries_synced")
-  errors      String?
-  createdAt   DateTime  @default(now()) @map("created_at")
-
-  @@map("harvest_syncs")
+  @@map("player_stats")
 }

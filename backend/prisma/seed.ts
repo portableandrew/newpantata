@@ -1,259 +1,203 @@
 import { PrismaClient } from '@prisma/client';
+import { addDays, subDays } from 'date-fns';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Paradise PM database...');
+  console.log('Seeding basketball training data...');
 
-  // Organization
-  await prisma.organization.upsert({
-    where: { id: 'org-paradise' },
-    update: {},
-    create: {
-      id: 'org-paradise',
-      name: 'Paradise',
-      targetProfitability: 7.5,
-      targetBillableUtilization: 68.1,
-    },
-  });
+  // Players
+  const players = await Promise.all([
+    prisma.player.create({ data: { name: 'Marcus Johnson', position: 'PG', jerseyNumber: 3, age: 19, heightCm: 185, weightKg: 80, teamGroup: 'Varsity' } }),
+    prisma.player.create({ data: { name: 'Tyler Brooks', position: 'SG', jerseyNumber: 11, age: 20, heightCm: 191, weightKg: 88, teamGroup: 'Varsity' } }),
+    prisma.player.create({ data: { name: 'James Rivera', position: 'SF', jerseyNumber: 23, age: 21, heightCm: 198, weightKg: 95, teamGroup: 'Varsity' } }),
+    prisma.player.create({ data: { name: 'DeShawn Williams', position: 'PF', jerseyNumber: 32, age: 20, heightCm: 203, weightKg: 105, teamGroup: 'Varsity' } }),
+    prisma.player.create({ data: { name: 'Chris Thompson', position: 'C', jerseyNumber: 5, age: 22, heightCm: 211, weightKg: 115, teamGroup: 'Varsity' } }),
+    prisma.player.create({ data: { name: 'Aiden Park', position: 'PG', jerseyNumber: 7, age: 18, heightCm: 180, weightKg: 75, teamGroup: 'JV' } }),
+    prisma.player.create({ data: { name: 'Leon Foster', position: 'SG', jerseyNumber: 14, age: 17, heightCm: 188, weightKg: 82, teamGroup: 'JV' } }),
+    prisma.player.create({ data: { name: 'Malik Davis', position: 'SF', jerseyNumber: 21, age: 18, heightCm: 195, weightKg: 90, teamGroup: 'JV' } }),
+  ]);
 
-  // Clients
-  const clients = [
-    { id: 'c-dcj', name: 'DCJ', industry: 'Government' },
-    { id: 'c-unsw', name: 'UNSW', industry: 'Education' },
-    { id: 'c-haifa', name: 'University of Haifa', industry: 'Education' },
-    { id: 'c-tv', name: 'Tenants Victoria', industry: 'Non-profit' },
-    { id: 'c-ipa', name: 'IP Australia', industry: 'Government' },
-    { id: 'c-njp', name: 'NJP', industry: 'Legal' },
-    { id: 'c-hs', name: 'headspace', industry: 'Healthcare' },
-    { id: 'c-icl', name: 'ICL', industry: 'Legal' },
-    { id: 'c-lans', name: 'Legal Aid NSW', industry: 'Legal' },
-    { id: 'c-lsc', name: 'LSC', industry: 'Legal' },
-    { id: 'c-nla', name: 'National Legal Aid', industry: 'Legal' },
-    { id: 'c-dor', name: 'Dor Foundation', industry: 'Non-profit' },
-    { id: 'c-aiatsis', name: 'AIATSIS', industry: 'Government' },
-    { id: 'c-liv', name: 'Law Institute Victoria', industry: 'Legal' },
-    { id: 'c-av', name: 'Anglicare Victoria', industry: 'Non-profit' },
-    { id: 'c-mlh', name: 'Michigan Legal Help', industry: 'Legal' },
-    { id: 'c-trib', name: 'Tribeca Group', industry: 'Consulting' },
-  ];
+  // Drills
+  const drills = await Promise.all([
+    prisma.drill.create({ data: { name: 'Mikan Drill', category: 'Shooting', difficulty: 'Beginner', durationMins: 10, description: 'Close-range layup drill alternating sides of the basket', instructions: '1. Start on left block\n2. Make a right-handed layup\n3. Without letting ball hit floor, make a left-handed layup from right block\n4. Continue for 1 minute' } }),
+    prisma.drill.create({ data: { name: '3-Point Shooting Circuit', category: 'Shooting', difficulty: 'Intermediate', durationMins: 15, description: 'Shoot from 5 spots around the 3-point arc', instructions: '1. Start at right corner\n2. Take 3 shots from each spot\n3. Move clockwise to next spot\n4. Track makes/misses' } }),
+    prisma.drill.create({ data: { name: 'Form Shooting', category: 'Shooting', difficulty: 'Beginner', durationMins: 10, description: 'Close-range one-hand shooting to build proper mechanics' } }),
+    prisma.drill.create({ data: { name: 'Defensive Slides', category: 'Defense', difficulty: 'Beginner', durationMins: 8, description: 'Lateral defensive sliding drill to build hip strength and footwork', instructions: '1. Get in defensive stance\n2. Slide left to line\n3. Slide right to other line\n4. Never cross feet\n5. 10 reps' } }),
+    prisma.drill.create({ data: { name: 'Shell Drill', category: 'Defense', difficulty: 'Intermediate', durationMins: 20, description: 'Team defensive positioning drill teaching help defense principles' } }),
+    prisma.drill.create({ data: { name: 'Zig-Zag Dribbling', category: 'BallHandling', difficulty: 'Beginner', durationMins: 10, description: 'Dribble in zig-zag pattern down the court using crossovers', instructions: '1. Start at corner\n2. Dribble at 45-degree angle to first cone\n3. Cross over and change direction\n4. Continue to end of court\n5. Repeat with off hand' } }),
+    prisma.drill.create({ data: { name: 'Two-Ball Dribbling', category: 'BallHandling', difficulty: 'Advanced', durationMins: 12, description: 'Dribble two basketballs simultaneously to build hand coordination' } }),
+    prisma.drill.create({ data: { name: 'Box-Out Drill', category: 'Rebounding', difficulty: 'Intermediate', durationMins: 15, description: '1-on-1 box out battles teaching proper rebounding positioning' } }),
+    prisma.drill.create({ data: { name: '5-on-5 Transition', category: 'Team', difficulty: 'Intermediate', durationMins: 20, description: 'Full-court transition offense and defense drill' } }),
+    prisma.drill.create({ data: { name: 'Suicide Sprints', category: 'Conditioning', difficulty: 'Advanced', durationMins: 15, description: 'Full-court sprint conditioning from baseline to each line', instructions: '1. Start at baseline\n2. Sprint to free throw line and back\n3. Sprint to half court and back\n4. Sprint to far free throw line and back\n5. Sprint full court and back\n6. Rest 1 min, repeat 4x' } }),
+    prisma.drill.create({ data: { name: 'Pivot Footwork', category: 'Footwork', difficulty: 'Beginner', durationMins: 8, description: 'Practice front and reverse pivots with proper foot placement' } }),
+    prisma.drill.create({ data: { name: '3-Man Weave', category: 'Team', difficulty: 'Intermediate', durationMins: 15, description: 'Classic passing drill that builds passing precision and court vision in transition' } }),
+  ]);
 
-  for (const client of clients) {
-    await prisma.client.upsert({
-      where: { id: client.id },
-      update: {},
-      create: client,
-    });
-  }
+  const now = new Date();
 
-  // Team Members
-  const teamMembers = [
-    { id: 'tm-sb', name: 'Sam Bury', email: 'sam.bury@paradise.com', role: 'Lead', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 120, hourlyRateBillable: 220 },
-    { id: 'tm-rt', name: 'Ruth Taylor', email: 'ruth.taylor@paradise.com', role: 'Lead', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 120, hourlyRateBillable: 220 },
-    { id: 'tm-af', name: 'Andrew Fulton', email: 'andrew.fulton@paradise.com', role: 'Lead', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 120, hourlyRateBillable: 220 },
-    { id: 'tm-bl', name: 'Becky Leonhardt', email: 'becky.leonhardt@paradise.com', role: 'Principal', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 150, hourlyRateBillable: 280 },
-    { id: 'tm-lt', name: 'Luke Thomas', email: 'luke.thomas@paradise.com', role: 'Principal', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 150, hourlyRateBillable: 280 },
-    { id: 'tm-pd', name: 'Prabhath De Silva', email: 'prabhath.desilva@paradise.com', role: 'Principal', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 150, hourlyRateBillable: 280 },
-    { id: 'tm-er', name: 'Emma Rhys', email: 'emma.rhys@paradise.com', role: 'Production', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 85, hourlyRateBillable: 165 },
-    { id: 'tm-tw', name: 'Tess Waterhouse', email: 'tess.waterhouse@paradise.com', role: 'Production', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 85, hourlyRateBillable: 165 },
-    { id: 'tm-jw', name: 'Juanita Ward', email: 'juanita.ward@paradise.com', role: 'Production', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 85, hourlyRateBillable: 165 },
-    { id: 'tm-aj', name: 'Anshika Jain', email: 'anshika.jain@paradise.com', role: 'Designer', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 95, hourlyRateBillable: 185 },
-    { id: 'tm-cf', name: 'Cristiano Fantasia', email: 'cristiano.fantasia@paradise.com', role: 'Designer', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 95, hourlyRateBillable: 185 },
-    { id: 'tm-aa', name: 'Ammar Aldaoud', email: 'ammar.aldaoud@paradise.com', role: 'BA', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 100, hourlyRateBillable: 195 },
-    { id: 'tm-dg', name: 'Darcy Glennen', email: 'darcy.glennen@paradise.com', role: 'BA', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 100, hourlyRateBillable: 195 },
-    { id: 'tm-da', name: 'Dave Allen', email: 'dave.allen@paradise.com', role: 'Developer', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 105, hourlyRateBillable: 200 },
-    { id: 'tm-ih', name: 'Ian Hogers', email: 'ian.hogers@paradise.com', role: 'Developer', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 105, hourlyRateBillable: 200 },
-    { id: 'tm-jb', name: 'Jeffrey Basilio', email: 'jeffrey.basilio@paradise.com', role: 'Developer', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 105, hourlyRateBillable: 200 },
-    { id: 'tm-nr', name: 'Nick Rogers', email: 'nick.rogers@paradise.com', role: 'BA', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 100, hourlyRateBillable: 195 },
-    { id: 'tm-th', name: 'Tam Ho', email: 'tam.ho@paradise.com', role: 'Developer', employmentType: 'FullTime', weeklyHours: 38, hourlyRateInternal: 105, hourlyRateBillable: 200 },
-  ];
-
-  for (const member of teamMembers) {
-    await prisma.teamMember.upsert({
-      where: { id: member.id },
-      update: {},
-      create: {
-        ...member,
-        role: member.role as any,
-        employmentType: member.employmentType as any,
-        startDate: new Date('2022-01-01'),
-        isActive: true,
+  // Training Sessions
+  const pastSession1 = await prisma.trainingSession.create({
+    data: {
+      title: 'Monday Practice',
+      sessionType: 'Practice',
+      date: subDays(now, 7),
+      durationMins: 120,
+      location: 'Main Gym',
+      notes: 'Focus on defensive rotations and 3-point shooting.',
+      drills: {
+        create: [
+          { drillId: drills[3].id, orderIndex: 0, sets: 3, durationMins: 8 },
+          { drillId: drills[4].id, orderIndex: 1, durationMins: 20 },
+          { drillId: drills[1].id, orderIndex: 2, sets: 5 },
+          { drillId: drills[8].id, orderIndex: 3, durationMins: 20 },
+        ],
       },
-    });
-  }
-
-  // Projects - SLAs
-  const slas = [
-    { id: 'p-dcj-sla', clientId: 'c-dcj', name: 'DCJ | SLA 25/26', projectType: 'SLA', status: 'Active', budget: 450000 },
-    { id: 'p-hs-sla', clientId: 'c-hs', name: 'headspace SLA | FY 25/26', projectType: 'SLA', status: 'Active', budget: 280000 },
-    { id: 'p-icl-sla', clientId: 'c-icl', name: 'ICL | SLA 2025/2026', projectType: 'SLA', status: 'Active', budget: 120000 },
-    { id: 'p-lans-sla', clientId: 'c-lans', name: 'Legal Aid NSW | SLA FY 2025-2026', projectType: 'SLA', status: 'Active', budget: 180000 },
-    { id: 'p-lsc-sla', clientId: 'c-lsc', name: 'LSC | Amica SLA 2025-2026', projectType: 'SLA', status: 'Active', budget: 95000 },
-    { id: 'p-nla-sla', clientId: 'c-nla', name: 'National Legal Aid | Maintenance SLA 2026', projectType: 'SLA', status: 'Active', budget: 75000 },
-  ];
-
-  // Active projects
-  const activeProjects = [
-    { id: 'p-dcj-eip', clientId: 'c-dcj', name: 'DCJ | EIP Mediation layer replacement', projectType: 'FixedPrice', status: 'Active', budget: 320000 },
-    { id: 'p-ipa-ai', clientId: 'c-ipa', name: 'IP Australia | Generative AI Chatbot', projectType: 'TM', status: 'Active', budget: 180000 },
-    { id: 'p-njp-it', clientId: 'c-njp', name: 'NJP | Hear Me Out - IT Support', projectType: 'TM', status: 'Active', budget: 45000 },
-    { id: 'p-tv-in', clientId: 'c-tv', name: 'Tenants Vic | Intake Prototype', projectType: 'FixedPrice', status: 'Active', budget: 85000 },
-    { id: 'p-haifa', clientId: 'c-haifa', name: 'University of Haifa | amica research', projectType: 'TM', status: 'Active', budget: 120000 },
-    { id: 'p-unsw-keh', clientId: 'c-unsw', name: 'UNSW | Knowledge Exchange Hub', projectType: 'FixedPrice', status: 'Active', budget: 240000 },
-  ];
-
-  // R&I projects
-  const riProjects = [
-    { id: 'p-civily', clientId: 'c-dcj', name: 'Civily', projectType: 'RIInternal', status: 'Active', budget: 0 },
-    { id: 'p-sme', clientId: 'c-dcj', name: 'SME Evaluation Tool', projectType: 'RIInternal', status: 'Active', budget: 0 },
-  ];
-
-  // Pipeline deals
-  const pipelineDeals = [
-    { id: 'p-ml-1', clientId: 'c-mlh', name: 'Michigan Legal Help | Platform Upgrade', projectType: 'FixedPrice', status: 'Pipeline', budget: 0, dealStage: 'Proposal', dealLikelihood: 'High', dealAmount: 280000, expectedCloseDate: new Date('2026-03-15') },
-    { id: 'p-av-1', clientId: 'c-av', name: 'Anglicare Victoria | Digital Transformation', projectType: 'TM', status: 'Pipeline', budget: 0, dealStage: 'Qualified', dealLikelihood: 'Medium', dealAmount: 150000, expectedCloseDate: new Date('2026-04-01') },
-    { id: 'p-trib-1', clientId: 'c-trib', name: 'Tribeca Group | Analytics Dashboard', projectType: 'FixedPrice', status: 'Pipeline', budget: 0, dealStage: 'Lead', dealLikelihood: 'Low', dealAmount: 95000, expectedCloseDate: new Date('2026-05-01') },
-    { id: 'p-aiat-1', clientId: 'c-aiatsis', name: 'AIATSIS | Knowledge Portal', projectType: 'FixedPrice', status: 'Pipeline', budget: 0, dealStage: 'Negotiation', dealLikelihood: 'High', dealAmount: 420000, expectedCloseDate: new Date('2026-02-28') },
-  ];
-
-  for (const project of [...slas, ...activeProjects, ...riProjects, ...pipelineDeals]) {
-    await prisma.project.upsert({
-      where: { id: project.id },
-      update: {},
-      create: {
-        ...project,
-        projectType: project.projectType as any,
-        status: project.status as any,
-        dealStage: (project as any).dealStage as any,
-        dealLikelihood: (project as any).dealLikelihood as any,
-        startDate: new Date('2025-07-01'),
-        endDate: new Date('2026-06-30'),
+      attendances: {
+        create: players.slice(0, 5).map(p => ({ playerId: p.id, attended: true })),
       },
-    });
-  }
+    },
+  });
 
-  // Add health updates for active projects
-  const healthProjects = [...slas, ...activeProjects, ...riProjects];
-  const statuses: ('Green' | 'Orange' | 'Red')[] = ['Green', 'Green', 'Green', 'Orange', 'Green', 'Green'];
-
-  for (let i = 0; i < healthProjects.length; i++) {
-    const proj = healthProjects[i];
-    const status = statuses[i % statuses.length];
-    await prisma.projectHealthUpdate.create({
-      data: {
-        projectId: proj.id,
-        updateDate: new Date('2026-02-14'),
-        overallStatus: status,
-        scheduleStatus: status,
-        scopeStatus: 'Green',
-        budgetStatus: status === 'Orange' ? 'Orange' : 'Green',
-        clientStatus: 'Green',
-        notes: status === 'Orange' ? 'Minor schedule risk - mitigation plan in place' : 'Project tracking well against all metrics',
+  const pastSession2 = await prisma.trainingSession.create({
+    data: {
+      title: 'Wednesday Conditioning',
+      sessionType: 'Conditioning',
+      date: subDays(now, 5),
+      durationMins: 60,
+      location: 'Main Gym',
+      drills: {
+        create: [
+          { drillId: drills[9].id, orderIndex: 0, sets: 4 },
+          { drillId: drills[3].id, orderIndex: 1, sets: 5 },
+        ],
       },
-    });
+      attendances: {
+        create: players.slice(0, 8).map((p, i) => ({ playerId: p.id, attended: i < 6 })),
+      },
+    },
+  });
+
+  await prisma.trainingSession.create({
+    data: {
+      title: 'Friday Scrimmage',
+      sessionType: 'Scrimmage',
+      date: subDays(now, 3),
+      durationMins: 90,
+      location: 'Main Gym',
+      notes: '5-on-5 scrimmage — evaluate lineup combinations.',
+      attendances: {
+        create: players.slice(0, 8).map(p => ({ playerId: p.id, attended: true })),
+      },
+    },
+  });
+
+  await prisma.trainingSession.create({
+    data: {
+      title: 'Film Session – Opponent Review',
+      sessionType: 'FilmSession',
+      date: subDays(now, 1),
+      durationMins: 45,
+      location: 'Film Room',
+      notes: 'Review opponent defensive schemes and tendencies.',
+      attendances: {
+        create: players.slice(0, 5).map(p => ({ playerId: p.id, attended: true })),
+      },
+    },
+  });
+
+  // Upcoming sessions
+  await prisma.trainingSession.create({
+    data: {
+      title: 'Tuesday Practice – Shooting Focus',
+      sessionType: 'Practice',
+      date: addDays(now, 1),
+      durationMins: 120,
+      location: 'Main Gym',
+      drills: {
+        create: [
+          { drillId: drills[2].id, orderIndex: 0, durationMins: 10 },
+          { drillId: drills[0].id, orderIndex: 1, sets: 3 },
+          { drillId: drills[1].id, orderIndex: 2, sets: 5 },
+          { drillId: drills[7].id, orderIndex: 3, durationMins: 15 },
+          { drillId: drills[11].id, orderIndex: 4, durationMins: 15 },
+        ],
+      },
+      attendances: {
+        create: players.slice(0, 5).map(p => ({ playerId: p.id })),
+      },
+    },
+  });
+
+  await prisma.trainingSession.create({
+    data: {
+      title: 'Thursday Game vs. Eastside',
+      sessionType: 'Game',
+      date: addDays(now, 3),
+      durationMins: 100,
+      location: 'Eastside Arena',
+      notes: 'Away game. Bus leaves at 5:30pm.',
+      attendances: {
+        create: players.slice(0, 8).map(p => ({ playerId: p.id })),
+      },
+    },
+  });
+
+  await prisma.trainingSession.create({
+    data: {
+      title: 'Saturday Ball Handling Workshop',
+      sessionType: 'Practice',
+      date: addDays(now, 5),
+      durationMins: 90,
+      location: 'Main Gym',
+      drills: {
+        create: [
+          { drillId: drills[5].id, orderIndex: 0, durationMins: 10 },
+          { drillId: drills[6].id, orderIndex: 1, durationMins: 12 },
+          { drillId: drills[10].id, orderIndex: 2, durationMins: 8 },
+        ],
+      },
+      attendances: {
+        create: players.map(p => ({ playerId: p.id })),
+      },
+    },
+  });
+
+  // Stats
+  const statDates = [subDays(now, 21), subDays(now, 14), subDays(now, 7), subDays(now, 3)];
+
+  for (const player of players.slice(0, 5)) {
+    for (const date of statDates) {
+      await prisma.playerStat.create({
+        data: {
+          playerId: player.id,
+          statDate: date,
+          statType: 'Game',
+          points: Math.floor(Math.random() * 18) + 5,
+          rebounds: Math.floor(Math.random() * 8) + 2,
+          assists: Math.floor(Math.random() * 7) + 1,
+          steals: Math.floor(Math.random() * 3),
+          blocks: Math.floor(Math.random() * 2),
+          turnovers: Math.floor(Math.random() * 4) + 1,
+          fieldGoalsMade: Math.floor(Math.random() * 7) + 2,
+          fieldGoalAttempts: Math.floor(Math.random() * 7) + 8,
+          threesMade: Math.floor(Math.random() * 3),
+          threesAttempts: Math.floor(Math.random() * 4) + 1,
+          freeThrowsMade: Math.floor(Math.random() * 5),
+          freeThrowAttempts: Math.floor(Math.random() * 3) + 2,
+          minutesPlayed: Math.floor(Math.random() * 15) + 18,
+        },
+      });
+    }
   }
-
-  // Monthly financials for Jan 2026 (sample data from brief)
-  await prisma.monthlyFinancial.upsert({
-    where: { month: new Date('2026-01-01') },
-    update: {},
-    create: {
-      month: new Date('2026-01-01'),
-      invoiced: 155231,
-      prepayments: 48293,
-      internalRevenue: 0,
-      totalRevenue: 203524,
-      wagesCost: 198608,
-      contractorsCost: 28000,
-      travelCost: 5000,
-      otherDirectCost: 15000,
-      directCosts: 246608,
-      grossProfit: -43084,
-      grossMargin: -21.17,
-      indirectCosts: 66977,
-      netProfit: -110061,
-      netMargin: -54.08,
-      rAndIHours: 41169,
-    },
-  });
-
-  // Client feedback
-  await prisma.clientFeedback.create({
-    data: {
-      projectId: 'p-dcj-sla',
-      clientId: 'c-dcj',
-      sentDate: new Date('2026-01-15'),
-      clientScore: 8.5,
-      participationRate: 75,
-      happiness: 8.8,
-      confidence: 8.2,
-      collaboration: 8.7,
-      feedbackText: 'Great team, very responsive and professional. Delivery was on time and quality exceeded expectations.',
-      respondentName: 'DCJ Project Manager',
-    },
-  });
-
-  await prisma.clientFeedback.create({
-    data: {
-      projectId: 'p-ipa-ai',
-      clientId: 'c-ipa',
-      sentDate: new Date('2026-01-20'),
-      clientScore: 9.1,
-      participationRate: 80,
-      happiness: 9.0,
-      confidence: 9.2,
-      collaboration: 9.0,
-      feedbackText: 'Excellent work on the AI chatbot. The team showed strong technical expertise and great communication.',
-      respondentName: 'IP Australia Lead',
-    },
-  });
-
-  // Contractors
-  await prisma.contractor.create({
-    data: {
-      name: 'Alex Chen',
-      projectId: 'p-dcj-eip',
-      startDate: new Date('2025-11-01'),
-      endDate: new Date('2026-03-31'),
-      totalCost: 45000,
-      status: 'Active',
-    },
-  });
-
-  await prisma.contractor.create({
-    data: {
-      name: 'Maria Santos',
-      projectId: 'p-unsw-keh',
-      startDate: new Date('2025-12-01'),
-      endDate: new Date('2026-02-28'),
-      totalCost: 22000,
-      status: 'Active',
-    },
-  });
-
-  // Quarterly targets
-  await prisma.quarterlyTarget.upsert({
-    where: { id: 'qt-q3-fy26' },
-    update: {},
-    create: {
-      id: 'qt-q3-fy26',
-      quarter: 'Q3 FY25-26',
-      startDate: new Date('2026-01-01'),
-      endDate: new Date('2026-03-31'),
-      targetRevenue: 720000,
-      targetCost: 620000,
-      targetProfit: 100000,
-    },
-  });
 
   console.log('Seed complete!');
+  console.log(`  ${players.length} players`);
+  console.log(`  ${drills.length} drills`);
+  console.log('  7 training sessions (4 past, 3 upcoming)');
+  console.log(`  ${5 * statDates.length} stat entries`);
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch(e => { console.error(e); process.exit(1); })
+  .finally(() => prisma.$disconnect());

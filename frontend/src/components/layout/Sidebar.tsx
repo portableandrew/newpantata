@@ -2,23 +2,17 @@ import { NavLink } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   LayoutDashboard,
-  FolderOpen,
-  TrendingUp,
   Users,
-  DollarSign,
-  FileText,
-  RefreshCw,
+  Dumbbell,
+  CalendarDays,
   ChevronRight,
 } from 'lucide-react';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/projects', label: 'Projects', icon: FolderOpen },
-  { to: '/pipeline', label: 'Pipeline', icon: TrendingUp },
-  { to: '/team', label: 'Team & Utilization', icon: Users },
-  { to: '/financials', label: 'Financials', icon: DollarSign },
-  { to: '/reports', label: 'Reports', icon: FileText },
-  { to: '/harvest', label: 'Harvest Sync', icon: RefreshCw },
+  { to: '/players', label: 'Players', icon: Users },
+  { to: '/drills', label: 'Drills Library', icon: Dumbbell },
+  { to: '/sessions', label: 'Sessions', icon: CalendarDays },
 ];
 
 export default function Sidebar() {
@@ -27,12 +21,12 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-6 py-5 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">P</span>
+          <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">H</span>
           </div>
           <div>
-            <p className="font-bold text-gray-900 text-sm leading-none">Paradise</p>
-            <p className="text-xs text-gray-400 mt-0.5">Project Management</p>
+            <p className="font-bold text-gray-900 text-sm leading-none">Hoops</p>
+            <p className="text-xs text-gray-400 mt-0.5">Training App</p>
           </div>
         </div>
       </div>
@@ -48,16 +42,16 @@ export default function Sidebar() {
               clsx(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group',
                 isActive
-                  ? 'bg-indigo-50 text-indigo-700'
+                  ? 'bg-orange-50 text-orange-700'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               )
             }
           >
             {({ isActive }) => (
               <>
-                <Icon size={18} className={isActive ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-600'} />
+                <Icon size={18} className={isActive ? 'text-orange-500' : 'text-gray-400 group-hover:text-gray-600'} />
                 <span className="flex-1">{label}</span>
-                {isActive && <ChevronRight size={14} className="text-indigo-400" />}
+                {isActive && <ChevronRight size={14} className="text-orange-400" />}
               </>
             )}
           </NavLink>
@@ -66,8 +60,8 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="px-6 py-4 border-t border-gray-100">
-        <p className="text-xs text-gray-400">Paradise PM v1.0</p>
-        <p className="text-xs text-gray-300">Replacing Kantata with joy</p>
+        <p className="text-xs text-gray-400">Hoops Training v1.0</p>
+        <p className="text-xs text-gray-300">Level up your game</p>
       </div>
     </aside>
   );
